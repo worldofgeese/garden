@@ -10,7 +10,7 @@ import { ModuleAndRuntimeActionHandlers } from "../../../types/plugin/plugin"
 import { configureHelmModule, HelmModule } from "./config"
 import { buildHelmModule } from "./build"
 import { getServiceStatus } from "./status"
-import { deleteService, deployHelmService } from "./deployment"
+import { deleteService, deployHelmService, planHelmDeployment } from "./deployment"
 import { getTestResult } from "../test-results"
 import { runHelmModule, runHelmTask } from "./run"
 import { getServiceLogs } from "./logs"
@@ -41,6 +41,7 @@ export const helmHandlers: Partial<ModuleAndRuntimeActionHandlers<HelmModule>> =
   execInService: execInHelmService,
   deleteService,
   deployService: deployHelmService,
+  planDeployment: planHelmDeployment,
   // Use the same getPortForward handler as container and kubernetes-module, except set the namespace
   getPortForward: async (params: GetPortForwardParams) => {
     const { ctx, log, module } = params

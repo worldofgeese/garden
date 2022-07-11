@@ -18,6 +18,7 @@ import { TestTask } from "./test"
 import { TaskTask } from "./task"
 import { GetServiceStatusTask } from "./get-service-status"
 import { GetTaskResultTask } from "./get-task-result"
+import { PlanTask } from "./plan"
 
 /**
  * Helper used by the `garden dev` and `garden deploy --watch` commands, to get all the tasks that should be
@@ -86,7 +87,7 @@ export async function getModuleWatchTasks({
   return deduplicated
 }
 
-type RuntimeTask = DeployTask | TestTask
+type RuntimeTask = DeployTask | TestTask | PlanTask
 
 export function getServiceStatusDeps(task: RuntimeTask, deps: DependencyRelations): GetServiceStatusTask[] {
   return deps.deploy.map((service) => {
@@ -135,6 +136,24 @@ export function getDeployDeps(task: RuntimeTask, deps: DependencyRelations, forc
   return deps.deploy.map(
     (service) =>
       new DeployTask({
+        garden: task.garden,
+        graph: task.graph,
+        log: task.log,
+        service,
+        force,
+        forceBuild: task.forceBuild,
+        skipRuntimeDependencies: task.skipRuntimeDependencies,
+        devModeServiceNames: task.devModeServiceNames,
+        hotReloadServiceNames: task.hotReloadServiceNames,
+        localModeServiceNames: task.localModeServiceNames,
+      })
+  )
+}
+
+export function getPlanDeps(task: RuntimeTask, deps: DependencyRelations, force: boolean): PlanTask[] {
+  return deps.deploy.map(
+    (service) =>
+      new PlanTask({
         garden: task.garden,
         graph: task.graph,
         log: task.log,

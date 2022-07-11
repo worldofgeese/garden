@@ -83,7 +83,7 @@ import { HotReloadServiceParams, HotReloadServiceResult } from "./types/plugin/s
 import { RunServiceParams } from "./types/plugin/service/runService"
 import { GetTaskResultParams } from "./types/plugin/task/getTaskResult"
 import { RunTaskParams, RunTaskResult } from "./types/plugin/task/runTask"
-import { ServiceStatus, ServiceStatusMap, ServiceState, GardenService } from "./types/service"
+import { ServiceStatus, ServiceStatusMap, ServiceState, GardenService, DeploymentPlan } from "./types/service"
 import { Omit, getNames, uuidv4 } from "./util/util"
 import { DebugInfoMap } from "./types/plugin/provider/getDebugInfo"
 import { PrepareEnvironmentParams, PrepareEnvironmentResult } from "./types/plugin/provider/prepareEnvironment"
@@ -100,7 +100,7 @@ import { ConfigureModuleParams, ConfigureModuleResult } from "./types/plugin/mod
 import { PluginContext, PluginEventBroker } from "./plugin-context"
 import { DeleteServiceTask, deletedServiceStatuses } from "./tasks/delete-service"
 import { realpath, writeFile } from "fs-extra"
-import { relative, join } from "path"
+import { relative, join, resolve } from "path"
 import { getArtifactKey } from "./util/artifacts"
 import { AugmentGraphResult, AugmentGraphParams } from "./types/plugin/provider/augmentGraph"
 import { DeployTask } from "./tasks/deploy"
@@ -111,8 +111,9 @@ import { ModuleConfigContext } from "./config/template-contexts/module"
 import { GetDashboardPageParams, GetDashboardPageResult } from "./types/plugin/provider/getDashboardPage"
 import { GetModuleOutputsParams, GetModuleOutputsResult } from "./types/plugin/module/getModuleOutputs"
 import { ConfigContext } from "./config/template-contexts/base"
+import { PlanDeploymentParams } from "./types/plugin/service/planDeployment"
 
-const maxArtifactLogLines = 5 // max number of artifacts to list in console after task+test runs
+const maxExportedFileLogLines = 5 // max number of exported files to list in console after task/test/plan runs
 
 type TypeGuard = {
   readonly [P in keyof (PluginActionParams | ModuleActionParams<any>)]: (...args: any[]) => Promise<any>
@@ -585,6 +586,29 @@ export class ActionRouter implements TypeGuard {
     return result
   }
 
+  async planDeployment(
+    params: ServiceActionRouterParams<Omit<PlanDeploymentParams, "planPath">>
+  ): Promise<DeploymentPlan> {
+    const { service, log } = params
+    const tmpDir = await tmp.dir({ unsafeCleanup: true })
+    const planPath = resolve(normalizePath(await realpath(tmpDir.path)), "")
+    try {
+      const { result } = await this.callServiceHandler({
+        params: { ...params, planPath },
+        actionType: "planDeployment",
+      })
+      return result
+    } finally {
+      try {
+        const planKey = `${service.name}.${service.version}`
+        const targetPath = resolve(this.garden.gardenDirPath, "plans", planKey)
+        await this.copyDeployables(log, planPath, targetPath, planKey)
+      } finally {
+        await tmpDir.cleanup()
+      }
+    }
+  }
+
   private validateServiceOutputs(service: GardenService, result: ServiceStatus) {
     const spec = this.moduleTypes[service.module.type]
 
@@ -910,13 +934,53 @@ export class ActionRouter implements TypeGuard {
    * @param artifactsPath the temporary directory path given to the plugin handler
    */
   private async copyArtifacts(log: LogEntry, artifactsPath: string, key: string) {
+    return await this.copyFiles({
+      log,
+      sourcePath: artifactsPath,
+      targetPath: this.garden.artifactsPath,
+      key,
+      entityDescription: "Artifact",
+    })
+  }
+
+  /**
+   * Copies the files exported by a plan deployment handler to the plan directory.
+   *
+   * @param log LogEntry
+   * @param planPath the temporary directory path given to the plugin handler
+   */
+  private async copyDeployables(log: LogEntry, planPath: string, targetPath: string, key: string) {
+    // .garden/plans/<key>
+    return await this.copyFiles({
+      log,
+      sourcePath: planPath,
+      targetPath,
+      key,
+      entityDescription: "Deployable",
+    })
+  }
+
+  // private async copyFiles(log: LogEntry, sourcePath: string, targetPath: string, key: string) {
+  private async copyFiles({
+    log,
+    sourcePath,
+    targetPath,
+    key,
+    entityDescription,
+  }: {
+    log: LogEntry
+    sourcePath: string
+    targetPath: string
+    key: string
+    entityDescription: string
+  }) {
     let files: string[] = []
 
     // Note: lazy-loading for startup performance
     const cpy = require("cpy")
 
     try {
-      files = await cpy("**/*", this.garden.artifactsPath, { cwd: artifactsPath, parents: true })
+      files = await cpy("**/*", targetPath, { cwd: sourcePath, parents: true })
     } catch (err) {
       // Ignore error thrown when the directory is empty
       if (err.name !== "CpyError" || !err.message.includes("the file doesn't exist")) {
@@ -927,20 +991,20 @@ export class ActionRouter implements TypeGuard {
     const count = files.length
 
     if (count > 0) {
-      // Log the exported artifact paths (but don't spam the console)
-      if (count > maxArtifactLogLines) {
-        files = files.slice(0, maxArtifactLogLines)
+      // Log the exported paths (but don't spam the console)
+      if (count > maxExportedFileLogLines) {
+        files = files.slice(0, maxExportedFileLogLines)
       }
       for (const file of files) {
-        log.info(chalk.gray(`→ Artifact: ${relative(this.garden.projectRoot, file)}`))
+        log.info(chalk.gray(`→ ${entityDescription}: ${relative(this.garden.projectRoot, file)}`))
       }
-      if (count > maxArtifactLogLines) {
-        log.info(chalk.gray(`→ Artifact: … plus ${count - maxArtifactLogLines} more files`))
+      if (count > maxExportedFileLogLines) {
+        log.info(chalk.gray(`→ ${entityDescription}: … plus ${count - maxExportedFileLogLines} more files`))
       }
     }
 
     // Write list of files to a metadata file
-    const metadataPath = join(this.garden.artifactsPath, `.metadata.${key}.json`)
+    const metadataPath = join(targetPath, `.metadata.${key}.json`)
     const metadata = {
       key,
       files: files.sort(),

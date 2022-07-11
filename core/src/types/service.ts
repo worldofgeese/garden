@@ -262,3 +262,36 @@ export function getIngressUrl(ingress: ServiceIngress) {
     })
   )
 }
+
+/**
+ * For example:
+ * deployables: {
+ *    manifests: [some/path, some/other/path]
+ * }
+ *
+ * Helm
+ * deployables: {
+ *    chartDir: some/path // contains values file with all template strings resolved
+ * }
+ */
+
+export interface DeploymentPlan {
+  empty: boolean
+  summary: string
+  description?: string
+  manifests?: any[]
+  version?: string
+}
+
+export const deploymentPlanSchema = () =>
+  joi.object().keys({
+    empty: joi.boolean().description("TODO"),
+    summary: joi.string().description("TODO"),
+    description: joi.string().optional().description("TODO"),
+    manifests: joi
+      .array()
+      .items(joi.object())
+      .optional()
+      .description("An optional list of manifests for logging at higher log levels."),
+    version: joi.string().optional().description("TODO"),
+  })

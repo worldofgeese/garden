@@ -2403,6 +2403,11 @@ const testPlugin = createGardenPlugin({
           return { state: "ready", detail: {} }
         },
 
+        planDeployment: async (params) => {
+          validateParams(params, moduleActionDescriptions.planDeployment.paramsSchema)
+          return { empty: true, summary: "", description: "", deployables: {}, version: "12345" }
+        },
+
         execInService: async (params) => {
           validateParams(params, moduleActionDescriptions.execInService.paramsSchema)
           return {

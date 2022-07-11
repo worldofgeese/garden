@@ -8,8 +8,9 @@
 
 import chalk from "chalk"
 import { V1Affinity, V1Container, V1DaemonSet, V1Deployment, V1PodSpec, V1VolumeMount } from "@kubernetes/client-node"
-import { GardenService } from "../../../types/service"
+import { DeploymentPlan, GardenService } from "../../../types/service"
 import { extend, find, keyBy, omit, set } from "lodash"
+import { writeFile } from "fs-extra"
 import { ContainerModule, ContainerService, ContainerServiceConfig, ContainerVolumeSpec } from "../../container/config"
 import { createIngressResources } from "./ingress"
 import { createServiceResources } from "./service"
@@ -36,6 +37,8 @@ import { configureDevMode, startDevModeSync } from "../dev-mode"
 import { syncableKinds, SyncableResource } from "../hot-reload/hot-reload"
 import { getResourceRequirements, getSecurityContext } from "./util"
 import { configureLocalMode, startServiceInLocalMode } from "../local-mode"
+import { PlanDeploymentParams } from "../../../types/plugin/service/planDeployment"
+import { safeDumpYaml } from "../../../util/util"
 
 export const DEFAULT_CPU_REQUEST = "10m"
 export const DEFAULT_MEMORY_REQUEST = "90Mi" // This is the minimum in some clusters
@@ -865,4 +868,54 @@ export async function deleteService(params: DeleteServiceParams): Promise<Contai
   })
 
   return { state: "missing", detail: { remoteResources: [], workload: null } }
+}
+
+export async function planContainerDeployment(params: PlanDeploymentParams): Promise<DeploymentPlan> {
+  const { ctx, service, log, runtimeContext, planPath } = params
+  const k8sCtx = <KubernetesPluginContext>ctx
+  const api = await KubeApi.factory(log, k8sCtx, k8sCtx.provider)
+
+  const namespaceStatus = await getAppNamespaceStatus(k8sCtx, log, k8sCtx.provider)
+  const namespace = namespaceStatus.namespaceName
+
+  const { manifests } = await createContainerManifests({
+    ctx: k8sCtx,
+    api,
+    log,
+    service,
+    runtimeContext,
+    enableDevMode: false,
+    enableHotReload: false,
+    enableLocalMode: false,
+    blueGreen: false,
+  })
+
+  const { state, diff } = await compareDeployedResources(k8sCtx, api, namespace, manifests, log)
+
+  const empty = state === "ready"
+  let summarySuffix: string
+
+  if (state === "ready") {
+    summarySuffix = "No deployment needed for this service."
+  } else {
+    if (state === "missing") {
+      summarySuffix = "Would deploy all resources."
+    } else {
+      summarySuffix = "Would deploy missing or outdated resources."
+    }
+  }
+
+  const summary = `Service status was '${state}'. ${summarySuffix}`
+  const description = diff || ""
+
+  // Write the manifests to the temp plan directory
+  await writeFile(resolve(planPath, "manifests.yaml"), safeDumpYaml(manifests, { noRefs: true }))
+
+  return {
+    empty, // true if no resources changed
+    summary, // description of old status
+    description, // diff
+    manifests,
+    version: service.version,
+  }
 }

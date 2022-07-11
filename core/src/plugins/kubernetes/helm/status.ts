@@ -222,6 +222,10 @@ export async function getReleaseStatus({
 
     const res = JSON.parse(await helm({ ctx, log, namespace, args: ["status", releaseName, "--output", "json"] }))
 
+    // console.log("")
+    // console.log(`release manifests for ${service.name}: ${JSON.stringify(safeLoadAll(res.manifest), null, 2)}`)
+    // console.log("")
+
     let state = helmStatusMap[res.info.status] || "unknown"
     let values = {}
 

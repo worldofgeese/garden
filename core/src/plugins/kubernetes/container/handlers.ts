@@ -6,7 +6,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-import { deployContainerService, deleteService } from "./deployment"
+import { deployContainerService, deleteService, planContainerDeployment } from "./deployment"
 import { hotReloadContainer } from "../hot-reload/hot-reload"
 import { getServiceLogs } from "./logs"
 import { runContainerModule, runContainerService, runContainerTask } from "./run"
@@ -37,6 +37,7 @@ export const containerHandlers = {
   getModuleOutputs: k8sGetContainerModuleOutputs,
   build: k8sBuildContainer,
   deployService: deployContainerService,
+  planDeployment: planContainerDeployment,
   deleteService,
   execInService,
   getBuildStatus: k8sGetContainerBuildStatus,

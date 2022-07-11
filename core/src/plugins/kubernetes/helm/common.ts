@@ -28,7 +28,7 @@ import { MAX_RUN_RESULT_LOG_LENGTH } from "../constants"
 import { dumpYaml } from "../../../util/util"
 import cryptoRandomString = require("crypto-random-string")
 
-const gardenValuesFilename = "garden-values.yml"
+export const gardenValuesFilename = "garden-values.yml"
 
 interface Chart {
   apiVersion: string

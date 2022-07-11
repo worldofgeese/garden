@@ -31,6 +31,7 @@ export type TaskType =
   | "start-sync"
   | "task"
   | "test"
+  | "plan"
   | "plugin"
 
 export class TaskDefinitionError extends Error {}

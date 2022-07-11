@@ -7,13 +7,15 @@
  */
 
 import Bluebird from "bluebird"
-import { waitForResources } from "../status/status"
+import { safeLoadAll } from "js-yaml"
+import { compareDeployedResources, waitForResources } from "../status/status"
 import { helm } from "./helm-cli"
 import { HelmModule } from "./config"
 import {
   filterManifests,
   getBaseModule,
   getChartPath,
+  getGardenValuesPath,
   getReleaseName,
   getValueArgs,
   prepareManifests,
@@ -39,6 +41,8 @@ import { configureHotReload, getHotReloadContainerName, getHotReloadSpec } from 
 import { configureDevMode, startDevModeSync } from "../dev-mode"
 import { KubeApi } from "../api"
 import { configureLocalMode, startServiceInLocalMode } from "../local-mode"
+import { PlanDeploymentParams } from "../../../types/plugin/service/planDeployment"
+import { DeploymentPlan } from "../../../types/service"
 
 export async function deployHelmService({
   ctx,
@@ -272,4 +276,99 @@ export async function deleteService(params: DeleteServiceParams): Promise<HelmSe
   log.setSuccess("Service deleted")
 
   return { state: "missing", detail: { remoteResources: [] } }
+}
+
+export async function planHelmDeployment(params: PlanDeploymentParams): Promise<DeploymentPlan> {
+  const { ctx, service, module, log, planPath } = params
+  const k8sCtx = <KubernetesPluginContext>ctx
+  const api = await KubeApi.factory(log, k8sCtx, k8sCtx.provider)
+
+  const namespaceStatus = await getModuleNamespaceStatus({
+    ctx: k8sCtx,
+    log,
+    module,
+    provider: k8sCtx.provider,
+  })
+  const namespace = namespaceStatus.namespaceName
+
+  const preparedTemplates = await prepareTemplates({
+    ctx: k8sCtx,
+    module,
+    devMode: false,
+    hotReload: false,
+    localMode: false,
+    log,
+    version: service.version,
+  })
+
+  const chartPath = await getChartPath(module)
+  const releaseName = getReleaseName(module)
+  const releaseStatus = await getReleaseStatus({
+    ctx: k8sCtx,
+    module,
+    service,
+    releaseName,
+    log,
+    devMode: false,
+    hotReload: false,
+    localMode: false,
+  })
+
+  // let remoteManifests: any[] = []
+  // try {
+  //   remoteManifests = safeLoadAll(releaseStatus.detail["manifest"])
+  // } catch (err) {
+  //   log.warn(`An error occurred while reading remote manifests: ${err.message}`)
+  // }
+
+  // log.info(`remoteManifests for ${service.name}: ${JSON.stringify(remoteManifests, null, 2)}`)
+  // log.info(`releaseStatus for ${service.name}: ${JSON.stringify(releaseStatus, null, 2)}`)
+
+  const preparedManifests = await prepareManifests({
+    ctx: k8sCtx,
+    log,
+    module,
+    devMode: false,
+    hotReload: false,
+    localMode: false,
+    version: service.version,
+    namespace: preparedTemplates.namespace,
+    releaseName: preparedTemplates.releaseName,
+    chartPath: preparedTemplates.chartPath,
+  })
+
+  const manifests = await filterManifests(preparedManifests)
+
+  const { diff } = await compareDeployedResources(k8sCtx, api, namespace, manifests, log)
+
+  const state = releaseStatus.state
+  const empty = state !== "ready"
+  let summarySuffix: string
+
+  if (state === "ready") {
+    summarySuffix = "No deployment needed for this service."
+  } else {
+    if (state === "missing") {
+      summarySuffix = "Would deploy all resources."
+    } else {
+      summarySuffix = "Would deploy missing or outdated resources."
+    }
+  }
+
+  const summary = `Service status was '${state}'. ${summarySuffix}`
+
+  // Note: lazy-loading for startup performance
+  const cpy = require("cpy")
+
+  // Write the manifests to the temp plan directory
+  await cpy("**/*", planPath, { cwd: chartPath, parents: true })
+  await cpy(getGardenValuesPath(chartPath), planPath)
+
+  return {
+    empty, // true if no resources changed
+    summary, // description of old status
+    description: diff, // diff
+    manifests,
+    version: service.version,
+  }
 }

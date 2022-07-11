@@ -278,6 +278,7 @@ interface ComparisonResult {
   deployedWithDevMode: boolean
   deployedWithHotReloading: boolean
   deployedWithLocalMode: boolean
+  diff?: string
 }
 
 /**
@@ -322,6 +323,7 @@ export async function compareDeployedResources(
     // One or more objects missing.
     log.verbose(`Resource(s) ${missingObjectNames.join(", ")} missing from cluster`)
     result.state = "outdated"
+    result.diff = renderDiff(deployedResources, manifests)
     return result
   }
 
@@ -347,6 +349,7 @@ export async function compareDeployedResources(
     )
 
     result.state = combineStates(deployedStates)
+    result.diff = renderDiff(deployedResources, manifests)
     return result
   }
 
@@ -448,6 +451,7 @@ export async function compareDeployedResources(
       // console.log("----------------------------------------------------")
       // throw new Error("bla")
       result.state = "outdated"
+      result.diff = renderDiff(deployedResources, manifests)
       return result
     }
   }
@@ -456,6 +460,24 @@ export async function compareDeployedResources(
 
   result.state = "ready"
   return result
+}
+
+function renderDiff(deployedResources: KubernetesResource[], manifests: KubernetesResource[]) {
+  const cleanedResources = deployedResources.map((r) => {
+    return omit(
+      r,
+      "status",
+      ["metadata", "uid"],
+      ["metadata", "resourceVersion"],
+      ["metadata", "generation"],
+      ["metadata", "creationTimestamp"],
+      ["metadata", "managedFields"],
+      ["annotations", "deployment.kubernetes.io/revision"],
+      ["annotations", gardenAnnotationKey("manifest-hash")]
+    )
+  })
+
+  return diffString(cleanedResources, manifests)
 }
 
 export function isConfiguredForDevMode(resource: SyncableResource): boolean {

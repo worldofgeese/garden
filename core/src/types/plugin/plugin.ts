@@ -34,7 +34,7 @@ import { TestModuleParams, testModule } from "./module/testModule"
 import { joiArray, joiIdentifier, joi, joiSchema, CustomObjectSchema } from "../../config/common"
 import { GardenModule } from "../module"
 import { RunResult } from "./base"
-import { ServiceStatus } from "../service"
+import { DeploymentPlan, ServiceStatus } from "../service"
 import { mapValues } from "lodash"
 import { getDebugInfo, DebugInfo, GetDebugInfoParams } from "./provider/getDebugInfo"
 import { dedent } from "../../util/string"
@@ -54,6 +54,7 @@ import {
 } from "./provider/getDashboardPage"
 import { getModuleOutputs, GetModuleOutputsParams, GetModuleOutputsResult } from "./module/getModuleOutputs"
 import { PluginContext } from "../../plugin-context"
+import { planDeployment, PlanDeploymentParams } from "./service/planDeployment"
 
 export interface ActionHandlerParamsBase {
   base?: ActionHandler<any, any>
@@ -210,6 +211,7 @@ export function getPluginActionDescriptions(): PluginActionDescriptions {
 interface _ServiceActionParams<T extends GardenModule = GardenModule> {
   deployService: DeployServiceParams<T>
   deleteService: DeleteServiceParams<T>
+  planDeployment: PlanDeploymentParams<T>
   execInService: ExecInServiceParams<T>
   getPortForward: GetPortForwardParams<T>
   getServiceLogs: GetServiceLogsParams<T>
@@ -229,6 +231,7 @@ export type ServiceActionParams<T extends GardenModule = GardenModule> = {
 export interface ServiceActionOutputs {
   deployService: ServiceStatus
   deleteService: ServiceStatus
+  planDeployment: DeploymentPlan
   execInService: ExecInServiceResult
   getPortForward: GetPortForwardResult
   getServiceLogs: {}
@@ -241,6 +244,7 @@ export interface ServiceActionOutputs {
 const serviceActionDescriptions: { [P in ServiceActionName]: () => PluginActionDescription } = {
   deployService,
   deleteService,
+  planDeployment,
   execInService,
   getPortForward,
   getServiceLogs,

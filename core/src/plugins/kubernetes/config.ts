@@ -215,6 +215,7 @@ export interface KubernetesConfig extends BaseProviderConfig {
     nodeSelector?: StringMap
     tolerations?: V1Toleration[]
     annotations?: StringMap
+    serviceAccountAnnotations?: StringMap
   }
   clusterDocker?: {
     enableBuildKit?: boolean
@@ -229,6 +230,7 @@ export interface KubernetesConfig extends BaseProviderConfig {
     nodeSelector?: StringMap
     tolerations?: V1Toleration[]
     annotations?: StringMap
+    serviceAccountAnnotations?: StringMap
     util?: {
       tolerations?: V1Toleration[]
       annotations?: StringMap
@@ -648,6 +650,9 @@ export const kubernetesConfigBase = () =>
         ),
         annotations: annotationsSchema().description(
           "Specify annotations to apply to both the Pod and Deployment resources associated with cluster-buildkit. Annotations may have an effect on the behaviour of certain components, for example autoscalers."
+        ),
+        serviceAccountAnnotations: annotationsSchema().description(
+          "Specify annotations to apply to the Kubernetes service account used by cluster-buildkit. This can be useful to set up IRSA with in-cluster building."
         ),
       })
       .default(() => ({}))

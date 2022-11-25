@@ -7,7 +7,9 @@
  */
 
 import {
+  getBuilderServiceAccountSpec,
   getUtilManifests,
+  inClusterBuilderServiceAccount,
   skopeoManifestUnknown,
 } from "../../../../../../../src/plugins/kubernetes/container/build/common"
 import { expect } from "chai"
@@ -38,6 +40,25 @@ describe("common build", () => {
     })
   })
 
+  describe("getBuilderServiceAccountSpec", () => {
+    it("should return the manifest", () => {
+      const result = getBuilderServiceAccountSpec({ "some-annotation": "annotation-value" })
+      expect(result).eql({
+        apiVersion: "v1",
+        kind: "ServiceAccount",
+        metadata: {
+          name: inClusterBuilderServiceAccount,
+          annotations: { "some-annotations": "annotation-value" },
+        },
+      })
+    })
+
+    it("should return empty annotations when no annotations are provided", () => {
+      const result = getBuilderServiceAccountSpec()
+      expect(result.metadata.annotations).eql({})
+    })
+  })
+
   describe("getUtilManifests", () => {
     const _provider: DeepPartial<KubernetesProvider> = {
       config: {
@@ -64,6 +85,7 @@ describe("common build", () => {
             template: {
               metadata: { labels: { app: "garden-util" }, annotations: undefined },
               spec: {
+                serviceAccountName: inClusterBuilderServiceAccount,
                 containers: [
                   {
                     name: "util",

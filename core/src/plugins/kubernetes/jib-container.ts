@@ -107,7 +107,6 @@ async function buildAndPushViaRemote(params: BuildModuleParams<GardenModule>) {
 
     // Make sure the sync target is up
     if (buildMode === "kaniko") {
-      // Make sure the garden-util deployment is up
       await ensureUtilDeployment({
         ctx,
         provider,
@@ -117,7 +116,6 @@ async function buildAndPushViaRemote(params: BuildModuleParams<GardenModule>) {
       })
       deploymentName = utilDeploymentName
     } else if (buildMode === "cluster-buildkit") {
-      // Make sure the buildkit deployment is up
       await ensureBuildkit({
         ctx,
         provider,

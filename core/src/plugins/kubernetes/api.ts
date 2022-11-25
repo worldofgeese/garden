@@ -32,6 +32,7 @@ import {
   Log,
   NetworkingV1Api,
   ApiextensionsV1Api,
+  V1ServiceAccount,
 } from "@kubernetes/client-node"
 import AsyncLock = require("async-lock")
 import request = require("request-promise")
@@ -129,6 +130,15 @@ const crudMap = {
     replace: null,
     delete: "deleteNamespacedService",
     patch: "patchNamespacedService",
+  },
+  ServiceAccount: {
+    cls: new V1ServiceAccount(),
+    group: "core",
+    read: "readNamespacedServiceAccount",
+    create: "createNamespacedServiceAccount",
+    replace: "replaceNamespacedServiceAccount",
+    delete: "deleteNamespacedServiceAccount",
+    patch: "patchNamespacedServiceAccount",
   },
 }
 

@@ -27,6 +27,9 @@ import {
   utilRsyncPort,
   ensureBuilderSecret,
   builderToleration,
+  inClusterBuilderServiceAccount,
+  ensureServiceAccount,
+  cycleDeployment,
 } from "./common"
 import { getNamespaceStatus } from "../../namespace"
 import { LogLevel } from "../../../../logger/logger"
@@ -179,6 +182,14 @@ export async function ensureBuildkit({
   api: KubeApi
   namespace: string
 }) {
+  const serviceAccountChanged = await ensureServiceAccount({
+    ctx,
+    log,
+    api,
+    namespace,
+    annotations: provider.config.clusterBuildkit?.serviceAccountAnnotations,
+  })
+
   return deployLock.acquire(namespace, async () => {
     const deployLog = log.placeholder()
 
@@ -193,15 +204,28 @@ export async function ensureBuildkit({
     const imagePullSecrets = await prepareSecrets({ api, namespace, secrets: provider.config.imagePullSecrets, log })
 
     // Check status of the buildkit deployment
-    const manifest = getBuildkitDeployment(provider, authSecret.metadata.name, imagePullSecrets)
-    const status = await compareDeployedResources(ctx as KubernetesPluginContext, api, namespace, [manifest], deployLog)
+    const deployment = getBuildkitDeployment(provider, authSecret.metadata.name, imagePullSecrets)
+
+    const status = await compareDeployedResources(
+      ctx as KubernetesPluginContext,
+      api,
+      namespace,
+      [deployment],
+      deployLog
+    )
+
+    // if the service account changed, all pods part of the deployment must be restarted
+    // so that they receive new credentials (e.g. for IRSA)
+    if (status.remoteResources.length && serviceAccountChanged) {
+      await cycleDeployment({ ctx, provider, deployment, api, namespace, deployLog })
+    }
 
     if (status.state === "ready") {
       // Need to wait a little to ensure the secret is updated in the deployment
       if (secretUpdated) {
         await sleep(1000)
       }
-      return { authSecret, updated: false }
+      return { authSecret, updated: serviceAccountChanged }
     }
 
     // Deploy the buildkit daemon
@@ -209,14 +233,14 @@ export async function ensureBuildkit({
       chalk.gray(`-> Deploying ${buildkitDeploymentName} daemon in ${namespace} namespace (was ${status.state})`)
     )
 
-    await api.upsert({ kind: "Deployment", namespace, log: deployLog, obj: manifest })
+    await api.upsert({ kind: "Deployment", namespace, log: deployLog, obj: deployment })
 
     await waitForResources({
       namespace,
       ctx,
       provider,
       serviceName: "garden-buildkit",
-      resources: [manifest],
+      resources: [deployment],
       log: deployLog,
       timeoutSec: 600,
     })
@@ -377,6 +401,7 @@ export function getBuildkitDeployment(
           annotations: provider.config.clusterBuildkit?.annotations,
         },
         spec: {
+          serviceAccountName: inClusterBuilderServiceAccount,
           containers: [
             {
               name: buildkitContainerName,

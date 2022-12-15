@@ -651,7 +651,7 @@ export const kubernetesConfigBase = () =>
         annotations: annotationsSchema().description(
           "Specify annotations to apply to both the Pod and Deployment resources associated with cluster-buildkit. Annotations may have an effect on the behaviour of certain components, for example autoscalers."
         ),
-        serviceAccountAnnotations: annotationsSchema().description(
+        serviceAccountAnnotations: serviceAccountAnnotationsSchema().description(
           "Specify annotations to apply to the Kubernetes service account used by cluster-buildkit. This can be useful to set up IRSA with in-cluster building."
         ),
       })
@@ -735,6 +735,9 @@ export const kubernetesConfigBase = () =>
             "Specify the nodeSelector constraints for each garden-util pod."
           ),
         }),
+        serviceAccountAnnotations: serviceAccountAnnotationsSchema().description(
+          "Specify annotations to apply to the Kubernetes service account used by kaniko. This can be useful to set up IRSA with in-cluster building."
+        ),
       })
       .default(() => {})
       .description("Configuration options for the `kaniko` build mode."),
@@ -985,6 +988,13 @@ const annotationsSchema = () =>
   joiStringMap(joi.string())
     .example({
       "cluster-autoscaler.kubernetes.io/safe-to-evict": "false",
+    })
+    .optional()
+
+const serviceAccountAnnotationsSchema = () =>
+  joiStringMap(joi.string())
+    .example({
+      "eks.amazonaws.com/role-arn": "arn:aws:iam::111122223333:role/my-role",
     })
     .optional()
 

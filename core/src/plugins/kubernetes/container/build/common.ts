@@ -37,7 +37,7 @@ import { gardenEnv } from "../../../../constants"
 import { ensureMutagenSync, flushMutagenSync, getKubectlExecDestination, terminateMutagenSync } from "../../mutagen"
 import { randomString } from "../../../../util/string"
 import { V1Container, V1Service } from "@kubernetes/client-node"
-import _, { cloneDeep, isEmpty } from "lodash"
+import { cloneDeep, isEmpty, isEqual } from "lodash"
 import { compareDeployedResources, waitForResources } from "../../status/status"
 import { KubernetesDeployment, KubernetesResource, KubernetesServiceAccount } from "../../types"
 import { stringifyResources } from "../util"
@@ -358,7 +358,7 @@ function isEqualAnnotations(r1: KubernetesResource, r2: KubernetesResource): boo
   // normalize annotations before comparison
   const a1 = r1.metadata.annotations !== undefined ? r1.metadata.annotations : {}
   const a2 = r2.metadata.annotations !== undefined ? r2.metadata.annotations : {}
-  return JSON.stringify(a1) === JSON.stringify(a2)
+  return isEqual(a1, a2)
 }
 
 /**
@@ -410,7 +410,7 @@ export async function ensureUtilDeployment({
 
     // if the service account changed, all pods part of the deployment must be restarted
     // so that they receive new credentials (e.g. for IRSA)
-    if (status.remoteResources.length && serviceAccountChanged) {
+    if (status.remoteResources.length > 0 && serviceAccountChanged) {
       await cycleDeployment({ ctx, provider, deployment, api, namespace, deployLog })
     }
 

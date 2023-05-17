@@ -19,6 +19,7 @@ export const getBundledPlugins = (): GardenPluginReference[] => [
   { name: "conftest", callback: () => require("@garden-io/garden-conftest").gardenPlugin() },
   { name: "conftest-container", callback: () => require("@garden-io/garden-conftest-container").gardenPlugin() },
   { name: "conftest-kubernetes", callback: () => require("@garden-io/garden-conftest-kubernetes").gardenPlugin() },
+  { name: "docker-compose", callback: () => require("@garden-io/garden-docker-compose").gardenPlugin.getSpec() },
   { name: "jib", callback: () => require("@garden-io/garden-jib").gardenPlugin() },
   { name: "terraform", callback: () => require("@garden-io/garden-terraform").gardenPlugin() },
   { name: "pulumi", callback: () => require("@garden-io/garden-pulumi").gardenPlugin() },

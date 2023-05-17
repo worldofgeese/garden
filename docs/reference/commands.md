@@ -4057,7 +4057,7 @@ Examples:
 
 #### Usage
 
-    garden plugins [plugin] [command] 
+    garden plugins [plugin] [command] [options]
 
 #### Arguments
 
@@ -4066,6 +4066,11 @@ Examples:
   | `plugin` | No | The name of the plugin, whose command you wish to run.
   | `command` | No | The name of the command to run.
 
+#### Options
+
+| Argument | Alias | Type | Description |
+| -------- | ----- | ---- | ----------- |
+  | `--cwd` |  | string | Set the working directory to run from.
 
 
 ### garden publish

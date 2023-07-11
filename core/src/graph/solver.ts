@@ -353,9 +353,18 @@ export class GraphSolver extends TypedEventEmitter<SolverEvents> {
             this.emit("loop", {})
           })
           .catch((error) => {
-            this.garden.events.emit("internalError", { error, timestamp: new Date() })
-            this.logInternalError(node, error)
-            node.complete({ startedAt, error, aborted: true, result: null })
+            if (error.type === "graph") {
+              // These errors are usually due to references to missing or disabled dependencies, not internal errors
+              // per se (so we also don't want to emit "internalError" events for these).
+              this.logDependencyError(node, error)
+            } else {
+              this.garden.events.emit("internalError", { error, timestamp: new Date() })
+              this.logInternalError(node, error)
+            }
+            try {
+              // This may fail if the node's task's dependencies include one or more missing or disabled actions.
+              node.complete({ startedAt, error, aborted: true, result: null })
+            } catch (err) {}
             // Abort execution on internal error
             this.emit("abort", { error })
           })
@@ -494,6 +503,11 @@ export class GraphSolver extends TypedEventEmitter<SolverEvents> {
     const log = node.task.log
     const prefix = `Failed ${node.describe()} ${renderDuration(log.getDuration())}. Here is the output:`
     this.logError(log, err, prefix)
+  }
+
+  private logDependencyError(node: TaskNode, err: Error) {
+    const prefix = `A graph or dependency error occurred while ${node.describe()}. Here is the output:`
+    this.logError(node.task.log, err, prefix)
   }
 
   private logInternalError(node: TaskNode, err: Error) {

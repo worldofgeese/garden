@@ -77,12 +77,21 @@
 * [Provider Configuration](./pulumi-plugin/configure-provider.md)
 * [Deploy action Configuration](./pulumi-plugin/configure-deploy-actions.md)
 
-## 🌼 Other Plugins
+## 🌼 Docker Compose Plugin
+
+* [About](./docker-compose-plugin/about.md)
+
+## 🌷 Other Plugins
 
 * [Container](./other-plugins/container.md)
 * [Exec (local scripts)](./other-plugins/exec.md)
 
-## 🌷 Guides
+## 🪷 Advanced
+
+* [Using Remote Sources](./advanced/using-remote-sources.md)
+* [Custom Commands](./advanced/custom-commands.md)
+
+## 🎋 Guides
 
 * [Installing Garden](./guides/installation.md)
 * [Adopting Garden](./guides/adopting-garden.md)
@@ -92,12 +101,7 @@
 * [Migrating from Docker Compose to Garden](./guides/migrating-from-docker-compose.md)
 * [Using Garden in CI](./guides/using-garden-in-ci.md)
 
-## 🪷 Advanced
-
-* [Using Remote Sources](./advanced/using-remote-sources.md)
-* [Custom Commands](./advanced/custom-commands.md)
-
-## 🎋 Reference
+## undefined Reference
 
 * [Providers](./reference/providers/README.md)
   * [`conftest-container`](./reference/providers/conftest-container.md)

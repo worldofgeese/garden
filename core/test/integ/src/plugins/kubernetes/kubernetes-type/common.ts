@@ -64,7 +64,7 @@ describe("getManifests", () => {
       })
 
       await expectError(
-        () => getManifests({ ctx, api, action, log: garden.log, defaultNamespace, readFromSrcDir: false }),
+        () => getManifests({ ctx, api, action, log: garden.log, defaultNamespace }),
         (err) => {
           expect(err.message).to.equal(dedent`
             Duplicate manifest definition: Service named silly-demo is declared more than once:
@@ -84,7 +84,7 @@ describe("getManifests", () => {
       })
 
       await expectError(
-        () => getManifests({ ctx, api, action, log: garden.log, defaultNamespace, readFromSrcDir: false }),
+        () => getManifests({ ctx, api, action, log: garden.log, defaultNamespace }),
         (err) => {
           expect(err.message).to.equal(dedent`
             Duplicate manifest definition: Service named silly-demo is declared more than once:
@@ -107,7 +107,7 @@ describe("getManifests", () => {
       })
 
       await expectError(
-        () => getManifests({ ctx, api, action, log: garden.log, defaultNamespace, readFromSrcDir: false }),
+        () => getManifests({ ctx, api, action, log: garden.log, defaultNamespace }),
         (err) => {
           expect(err.message).to.equal(dedent`
             Duplicate manifest definition: Service named silly-demo is declared more than once:
@@ -130,7 +130,7 @@ describe("getManifests", () => {
       })
 
       await expectError(
-        () => getManifests({ ctx, api, action, log: garden.log, defaultNamespace, readFromSrcDir: false }),
+        () => getManifests({ ctx, api, action, log: garden.log, defaultNamespace }),
         (err) => {
           expect(err.message).to.equal(dedent`
             Duplicate manifest definition: Service named silly-demo is declared more than once:
@@ -176,7 +176,7 @@ describe("getManifests", () => {
       action["_config"].spec.kustomize!.extraArgs = ["--output", "foo"]
 
       await expectError(
-        () => getManifests({ ctx, api, action, log: garden.log, defaultNamespace, readFromSrcDir: false }),
+        () => getManifests({ ctx, api, action, log: garden.log, defaultNamespace }),
         (err) => expect(err.message).to.equal(expectedErr)
       )
     })
@@ -185,7 +185,7 @@ describe("getManifests", () => {
       action["_config"].spec.kustomize!.extraArgs = ["-o", "foo"]
 
       await expectError(
-        () => getManifests({ ctx, api, action, log: garden.log, defaultNamespace, readFromSrcDir: false }),
+        () => getManifests({ ctx, api, action, log: garden.log, defaultNamespace }),
         (err) => expect(err.message).to.equal(expectedErr)
       )
     })
@@ -194,7 +194,7 @@ describe("getManifests", () => {
       action["_config"].spec.kustomize!.extraArgs = ["-h"]
 
       await expectError(
-        () => getManifests({ ctx, api, action, log: garden.log, defaultNamespace, readFromSrcDir: false }),
+        () => getManifests({ ctx, api, action, log: garden.log, defaultNamespace }),
         (err) => expect(err.message).to.equal(expectedErr)
       )
     })
@@ -203,20 +203,20 @@ describe("getManifests", () => {
       action["_config"].spec.kustomize!.extraArgs = ["--help"]
 
       await expectError(
-        () => getManifests({ ctx, api, action, log: garden.log, defaultNamespace, readFromSrcDir: false }),
+        () => getManifests({ ctx, api, action, log: garden.log, defaultNamespace }),
         (err) => expect(err.message).to.equal(expectedErr)
       )
     })
 
     it("runs kustomize build in the given path", async () => {
-      const result = await getManifests({ ctx, api, action, log: garden.log, defaultNamespace, readFromSrcDir: true })
+      const result = await getManifests({ ctx, api, action, log: garden.log, defaultNamespace })
       const kinds = result.map((r) => r.kind)
       expect(kinds).to.have.members(["ConfigMap", "Service", "Deployment"])
     })
 
     it("adds extraArgs if specified to the build command", async () => {
       action["_config"].spec.kustomize!.extraArgs = ["--reorder", "none"]
-      const result = await getManifests({ ctx, api, action, log: garden.log, defaultNamespace, readFromSrcDir: true })
+      const result = await getManifests({ ctx, api, action, log: garden.log, defaultNamespace })
       const kinds = result.map((r) => r.kind)
       expect(kinds).to.eql(["Deployment", "Service", "ConfigMap"])
     })
@@ -250,7 +250,6 @@ describe("getManifests", () => {
         action: resolvedAction,
         log: garden.log,
         defaultNamespace,
-        readFromSrcDir: true,
       })
       expect(manifests).to.exist
       const names = manifests.map((m) => ({ kind: m.kind, name: m.metadata?.name }))
@@ -277,7 +276,6 @@ describe("getManifests", () => {
         action: resolvedAction,
         log: garden.log,
         defaultNamespace,
-        readFromSrcDir: true,
       })
       expect(manifests).to.exist
       const names = manifests.map((m) => ({ kind: m.kind, name: m.metadata?.name }))
@@ -303,7 +301,6 @@ describe("getManifests", () => {
             action: resolvedAction,
             log: garden.log,
             defaultNamespace,
-            readFromSrcDir: true,
           }),
         {
           contains: `Invalid manifest file path(s) in ${action.kind} action '${action.name}'`,
@@ -331,7 +328,6 @@ describe("getManifests", () => {
             action: resolvedAction,
             log: garden.log,
             defaultNamespace,
-            readFromSrcDir: true,
           }),
         {
           contains: `Invalid manifest file path(s) in ${action.kind} action '${action.name}'`,

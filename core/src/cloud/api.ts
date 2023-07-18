@@ -585,7 +585,7 @@ export class CloudApi {
       method: "POST",
       body: body || {},
       headers: headers || {},
-      retry: retry === true ? true : false, // defaults to false unless true is explicitly passed
+      retry: !!retry, // defaults to false unless true is explicitly passed
       retryDescription,
       maxRetries,
     })
@@ -597,7 +597,7 @@ export class CloudApi {
       method: "PUT",
       body: body || {},
       headers: headers || {},
-      retry: retry === true ? true : false, // defaults to false unless true is explicitly passed
+      retry: !!retry, // defaults to false unless true is explicitly passed
       retryDescription,
       maxRetries,
     })

@@ -24,10 +24,10 @@ import { TestAction } from "../actions/test"
 import { GetTestResult } from "../plugin/handlers/Test/get-result"
 import { TestConfig } from "../config/test"
 import { moduleTestNameToActionName } from "../types/module"
-import { OtelTraced } from "../util/tracing/decorators"
+import { OtelTraced } from "../util/open-telemetry/decorators"
 
 class TestError extends Error {
-  toString() {
+  override toString() {
     return this.message
   }
 }
@@ -52,7 +52,7 @@ export class TestTask extends ExecuteActionTask<TestAction, GetTestResult> {
     this.interactive = interactive
   }
 
-  protected getDependencyParams(): TestTaskParams {
+  protected override getDependencyParams(): TestTaskParams {
     return { ...super.getDependencyParams(), silent: this.silent, interactive: this.interactive }
   }
 

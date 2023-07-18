@@ -24,7 +24,7 @@ import { DeployStatus } from "../plugin/handlers/Deploy/get-status"
 import { displayState, resolvedActionToExecuted } from "../actions/helpers"
 import { PluginEventBroker } from "../plugin-context"
 import { ActionLog } from "../logger/log-entry"
-import { OtelTraced } from "../util/tracing/decorators"
+import { OtelTraced } from "../util/open-telemetry/decorators"
 
 export interface DeployTaskParams extends BaseActionTaskParams<DeployAction> {
   events?: PluginEventBroker
@@ -40,7 +40,7 @@ function printIngresses(status: DeployStatus, log: ActionLog) {
 @Profile()
 export class DeployTask extends ExecuteActionTask<DeployAction, DeployStatus> {
   type = "deploy" as const
-  concurrencyLimit = 10
+  override concurrencyLimit = 10
 
   events?: PluginEventBroker
   startSync: boolean
@@ -51,7 +51,7 @@ export class DeployTask extends ExecuteActionTask<DeployAction, DeployStatus> {
     this.startSync = !!params.startSync
   }
 
-  protected getDependencyParams(): DeployTaskParams {
+  protected override getDependencyParams(): DeployTaskParams {
     return {
       ...super.getDependencyParams(),
       startSync: this.startSync,

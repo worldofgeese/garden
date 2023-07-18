@@ -20,13 +20,13 @@ import pluralize from "pluralize"
 import { BuildStatus } from "../plugin/handlers/Build/get-status"
 import { resolvedActionToExecuted } from "../actions/helpers"
 import { renderDuration } from "../logger/util"
-import { OtelTraced } from "../util/tracing/decorators"
-import { wrapActiveSpan } from "../util/tracing/spans"
+import { OtelTraced } from "../util/open-telemetry/decorators"
+import { wrapActiveSpan } from "../util/open-telemetry/spans"
 
 @Profile()
 export class BuildTask extends ExecuteActionTask<BuildAction, BuildStatus> {
   type = "build" as const
-  concurrencyLimit = 5
+  override concurrencyLimit = 5
   eventName = "buildStatus" as const
 
   getDescription() {

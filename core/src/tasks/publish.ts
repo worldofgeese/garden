@@ -15,7 +15,7 @@ import { ConfigContext, schema } from "../config/template-contexts/base"
 import { PublishActionResult } from "../plugin/handlers/Build/publish"
 import { BuildAction } from "../actions/build"
 import { ActionSpecContext, ActionSpecContextParams } from "../config/template-contexts/actions"
-import { OtelTraced } from "../util/tracing/decorators"
+import { OtelTraced } from "../util/open-telemetry/decorators"
 
 export interface PublishTaskParams extends BaseActionTaskParams<BuildAction> {
   tagTemplate?: string
@@ -23,7 +23,7 @@ export interface PublishTaskParams extends BaseActionTaskParams<BuildAction> {
 
 export class PublishTask extends BaseActionTask<BuildAction, PublishActionResult> {
   type = "publish"
-  concurrencyLimit = 5
+  override concurrencyLimit = 5
 
   tagTemplate?: string
 
@@ -32,15 +32,15 @@ export class PublishTask extends BaseActionTask<BuildAction, PublishActionResult
     this.tagTemplate = params.tagTemplate
   }
 
-  protected getDependencyParams(): PublishTaskParams {
+  protected override getDependencyParams(): PublishTaskParams {
     return { ...super.getDependencyParams(), tagTemplate: this.tagTemplate }
   }
 
-  resolveStatusDependencies() {
+  override resolveStatusDependencies() {
     return []
   }
 
-  resolveProcessDependencies() {
+  override resolveProcessDependencies() {
     if (this.action.getConfig("allowPublish") === false) {
       return [this.getResolveTask(this.action)]
     }

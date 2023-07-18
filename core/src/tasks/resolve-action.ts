@@ -18,7 +18,7 @@ import { merge } from "lodash"
 import { mergeVariables } from "../graph/common"
 import { actionToResolved } from "../actions/helpers"
 import { ResolvedConfigGraph } from "../graph/config-graph"
-import { OtelTraced } from "../util/tracing/decorators"
+import { OtelTraced } from "../util/open-telemetry/decorators"
 
 export interface ResolveActionResults<T extends Action> extends ValidResultType {
   state: ActionState
@@ -36,7 +36,7 @@ export class ResolveActionTask<T extends Action> extends BaseActionTask<T, Resol
     return `resolve ${this.action.longDescription()}`
   }
 
-  getName() {
+  override getName() {
     return this.action.key()
   }
 
@@ -44,11 +44,11 @@ export class ResolveActionTask<T extends Action> extends BaseActionTask<T, Resol
     return null
   }
 
-  resolveStatusDependencies() {
+  override resolveStatusDependencies() {
     return []
   }
 
-  resolveProcessDependencies(): BaseTask[] {
+  override resolveProcessDependencies(): BaseTask[] {
     // TODO-0.13.1
     // If we get a resolved task upfront, e.g. from module conversion, we could avoid resolving any dependencies.
     // if (this.action.getConfig().internal?.resolved) {

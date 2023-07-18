@@ -55,8 +55,8 @@ import { GraphResultMapWithoutTask, GraphResultWithoutTask, GraphResults } from 
 import { splitFirst } from "../util/string"
 import { ActionMode } from "../actions/types"
 import { AnalyticsHandler } from "../analytics/analytics"
-import { withSessionContext } from "../util/tracing/context"
-import { wrapActiveSpan } from "../util/tracing/spans"
+import { withSessionContext } from "../util/open-telemetry/context"
+import { wrapActiveSpan } from "../util/open-telemetry/spans"
 
 export interface CommandConstructor {
   new (parent?: CommandGroup): Command
@@ -650,7 +650,7 @@ export abstract class ConsoleCommand<A extends Parameters = {}, O extends Parame
   O,
   R
 > {
-  isDevCommand = true
+  override isDevCommand = true
 }
 
 export abstract class CommandGroup extends Command {
@@ -668,13 +668,13 @@ export abstract class CommandGroup extends Command {
     })
   }
 
-  printHeader() {}
+  override printHeader() {}
 
   async action() {
     return {}
   }
 
-  describe() {
+  override describe() {
     const description = super.describe()
     const subCommands = this.getSubCommands().map((c) => c.describe())
 
@@ -684,7 +684,7 @@ export abstract class CommandGroup extends Command {
     }
   }
 
-  renderHelp() {
+  override renderHelp() {
     const commands = this.getSubCommands()
 
     return `

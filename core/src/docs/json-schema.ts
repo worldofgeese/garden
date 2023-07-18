@@ -39,6 +39,11 @@ export class JsonKeyDescription<T = any> extends BaseKeyDescription<T> {
       schema = schema.oneOf[0]
     }
 
+    // FIXME: We only use the first type if there are multiple possible schemas
+    if (schema.anyOf) {
+      schema = schema.anyOf[0]
+    }
+
     this.schema = schema
     this.type = getType(schema)
 
@@ -63,11 +68,11 @@ export class JsonKeyDescription<T = any> extends BaseKeyDescription<T> {
     }
   }
 
-  formatName() {
+  override formatName() {
     return this.type === "array" ? `${this.name}[]` : this.name
   }
 
-  formatType() {
+  override formatType() {
     return formatType(this.schema)
   }
 
@@ -117,6 +122,10 @@ export class JsonKeyDescription<T = any> extends BaseKeyDescription<T> {
 
       if (itemsSchema.oneOf) {
         itemsSchema = itemsSchema.oneOf[0]
+      }
+
+      if (itemsSchema.anyOf) {
+        itemsSchema = itemsSchema.anyOf[0]
       }
 
       return [

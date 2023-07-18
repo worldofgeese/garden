@@ -33,7 +33,7 @@ import { removeSlice } from "../util/util"
 import { join } from "path"
 import { getBuiltinCommands } from "./commands"
 import { Log } from "../logger/log-entry"
-import { getTracePropagationEnvVars } from "../util/tracing/propagation"
+import { getTracePropagationEnvVars } from "../util/open-telemetry/propagation"
 
 function convertArgSpec(spec: CustomCommandOption) {
   const params = {
@@ -75,9 +75,9 @@ export class CustomCommandWrapper extends Command {
   name = "<custom>"
   help = ""
 
-  isCustom = true
+  override isCustom = true
 
-  allowUndefinedArguments = true
+  override allowUndefinedArguments = true
 
   constructor(public spec: CommandResource) {
     super(spec)
@@ -90,7 +90,7 @@ export class CustomCommandWrapper extends Command {
     this.options = mapValues(keyBy(spec.opts, "name"), convertArgSpec)
   }
 
-  printHeader({ log }: PrintHeaderParams) {
+  override printHeader({ log }: PrintHeaderParams) {
     log.info(chalk.cyan(this.name))
   }
 

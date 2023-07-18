@@ -36,10 +36,10 @@ export function terraform(ctx: PluginContext, provider: TerraformProvider) {
 
 export class GlobalTerraform extends CliWrapper {
   constructor() {
-    super("terraform", "terraform")
+    super({ name: "terraform", path: "terraform" })
   }
 
-  async getPath(_: Log) {
+  override async getPath(_: Log) {
     try {
       return await which("terraform")
     } catch (err) {

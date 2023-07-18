@@ -6,9 +6,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-import split2 from "split2"
 import { pathExists, createWriteStream, ensureDir, chmod, remove, move, createReadStream } from "fs-extra"
-import { ConfigurationError, ParameterError, GardenBaseError, RuntimeError } from "../exceptions"
+import { ConfigurationError, ParameterError, GardenBaseError } from "../exceptions"
 import { join, dirname, basename, posix } from "path"
 import { hashString, exec, getPlatform, getArchitecture, isDarwinARM } from "./util"
 import tar from "tar"
@@ -25,6 +24,7 @@ import AsyncLock from "async-lock"
 import { PluginContext } from "../plugin-context"
 import { LogLevel } from "../logger/logger"
 import { uuidv4 } from "./random"
+import { streamLogs, waitForProcess } from "./process"
 
 const toolsPath = join(GARDEN_GLOBAL_PATH, "tools")
 const lock = new AsyncLock()
@@ -54,17 +54,17 @@ export class CliWrapper {
   name: string
   protected toolPath: string
 
-  constructor(name: string, path: string) {
+  constructor({ name, path }: { name: string; path: string }) {
     this.name = name
     this.toolPath = path
   }
 
-  async ensurePath(_: Log) {
+  async getPath(_: Log) {
     return this.toolPath
   }
 
   async exec({ args, cwd, env, log, timeoutSec, input, ignoreError, stdout, stderr }: ExecParams) {
-    const path = await this.ensurePath(log)
+    const path = await this.getPath(log)
 
     if (!args) {
       args = []
@@ -105,7 +105,7 @@ export class CliWrapper {
   }
 
   async spawn({ args, cwd, env, log }: SpawnParams) {
-    const path = await this.ensurePath(log)
+    const path = await this.getPath(log)
 
     if (!args) {
       args = []
@@ -133,60 +133,20 @@ export class CliWrapper {
   }: SpawnParams & { errorPrefix: string; ctx: PluginContext; statusLine?: Log }) {
     const proc = await this.spawn({ args, cwd, env, log })
 
-    const logStream = split2()
-
-    let stdout: string = ""
-    let stderr: string = ""
-
-    if (proc.stderr) {
-      proc.stderr.pipe(logStream)
-      proc.stderr.on("data", (data) => {
-        stderr += data
-      })
-    }
-
-    if (proc.stdout) {
-      proc.stdout.pipe(logStream)
-      proc.stdout.on("data", (data) => {
-        stdout += data
-      })
-    }
-
-    const logEventContext = {
-      origin: this.name,
-      level: "verbose" as const,
-    }
-
-    logStream.on("data", (line: Buffer) => {
-      ctx.events.emit("log", { timestamp: new Date().toISOString(), msg: line.toString(), ...logEventContext })
+    streamLogs({
+      proc,
+      name: this.name,
+      ctx,
     })
 
-    await new Promise<void>((resolve, reject) => {
-      proc.on("error", reject)
-      proc.on("close", (code) => {
-        if (code === 0) {
-          resolve()
-        } else {
-          // Some commands (e.g. the pulumi CLI) don't log anything to stderr when an error occurs. To handle that,
-          // we use `stdout` for the error output instead (in case information relevant to the user is included there).
-          const errOutput = stderr.length > 0 ? stderr : stdout
-          reject(
-            new RuntimeError({
-              message: `${errorPrefix}:\n${errOutput}`,
-              detail: {
-                stdout,
-                stderr,
-                code,
-              },
-            })
-          )
-        }
-      })
+    await waitForProcess({
+      proc,
+      errorPrefix,
     })
   }
 
   async spawnAndWait({ args, cwd, env, log, ignoreError, rawMode, stdout, stderr, timeoutSec, tty }: SpawnParams) {
-    const path = await this.ensurePath(log)
+    const path = await this.getPath(log)
 
     if (!args) {
       args = []
@@ -236,7 +196,7 @@ export class PluginTool extends CliWrapper {
   private chmodDone: boolean
 
   constructor(spec: PluginToolSpec) {
-    super(spec.name, "")
+    super({ name: spec.name, path: "" })
 
     const platform = getPlatform()
     const architecture = getArchitecture()
@@ -276,6 +236,10 @@ export class PluginTool extends CliWrapper {
     this.chmodDone = false
   }
 
+  override async getPath(log: Log) {
+    return this.ensurePath(log)
+  }
+
   async ensurePath(log: Log) {
     await this.download(log)
     const path = join(this.versionPath, ...this.targetSubpath.split(posix.sep))
@@ -287,7 +251,7 @@ export class PluginTool extends CliWrapper {
         this.chmodDone = true
       }
     }
-
+    this.toolPath = path
     return path
   }
 

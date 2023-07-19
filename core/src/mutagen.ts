@@ -9,7 +9,7 @@
 import AsyncLock from "async-lock"
 import chalk from "chalk"
 import { join } from "path"
-import { mkdirp, pathExists } from "fs-extra"
+import { mkdirp, pathExists, writeFile } from "fs-extra"
 import respawn from "respawn"
 import { Log } from "./logger/log-entry"
 import { PluginToolSpec } from "./plugin/tools"
@@ -21,7 +21,7 @@ import { syncGuideLink } from "./plugins/kubernetes/sync"
 import dedent from "dedent"
 import { PluginContext } from "./plugin-context"
 import Bluebird from "bluebird"
-import { MUTAGEN_DIR_NAME } from "./constants"
+import { GARDEN_GLOBAL_PATH, MUTAGEN_DIR_NAME } from "./constants"
 import { ExecaReturnValue } from "execa"
 import EventEmitter from "events"
 import split2 from "split2"
@@ -29,6 +29,7 @@ import { TypedEventEmitter } from "./util/events"
 import pMemoize from "./lib/p-memoize"
 import { deline } from "./util/string"
 import { emitNonRepeatableWarning } from "./warnings"
+import hasha from "hasha"
 
 const maxRestarts = 10
 const mutagenLogSection = "<mutagen>"
@@ -162,8 +163,19 @@ interface MonitorEvents {
  * running).
  */
 const ensureDataDir = pMemoize(async (dataDir: string) => {
+  console.log("Creating data dir", dataDir)
   await mkdirp(dataDir)
 })
+
+const getShorterPathForMutagen = (path: string) => {
+  const hash = hasha(path, { algorithm: "sha256" }).slice(0, 9)
+  const shortPath = join(GARDEN_GLOBAL_PATH, MUTAGEN_DIR_NAME, hash)
+  console.log("full path", path, "short path", shortPath)
+  return shortPath
+  // await ensureDataDir(shortPath)
+  // // write full path of corresponding project dir in text file
+  // await writeFile(join(shortPath, 'path.txt'), path)
+}
 
 /**
  * Wrapper around `mutagen sync monitor`. This is used as a singleton, and emits events for instances of
@@ -179,7 +191,11 @@ class _MutagenMonitor extends TypedEventEmitter<MonitorEvents> {
     super()
     this.log = log.createLog({ name: mutagenLogSection })
     this.configLock = new AsyncLock()
+    // data dir symlink to ~/.garden
+    console.log("mutagenmonitor", dataDir)
+    // this.dataDir = getShorterPathForMutagen(dataDir)
     this.dataDir = dataDir
+    console.log("xaxa", this.dataDir)
 
     registerCleanupFunction("stop-mutagen-monitor", () => {
       this.proc?.stop()
@@ -205,6 +221,7 @@ class _MutagenMonitor extends TypedEventEmitter<MonitorEvents> {
       const mutagenPath = await mutagenCli.ensurePath(log)
       const dataDir = this.dataDir
 
+      console.log("xaxa-start", dataDir)
       await ensureDataDir(dataDir)
 
       const proc = respawn([mutagenPath, "sync", "monitor", "--template", "{{ json . }}", "--long"], {
@@ -331,7 +348,9 @@ export class Mutagen {
   constructor({ ctx, log, dataDir }: MutagenDaemonParams) {
     this.log = log
     this.configLock = new AsyncLock()
-    this.dataDir = dataDir || join(ctx.gardenDirPath, MUTAGEN_DIR_NAME)
+    // todo change here
+    console.log("mutagen constructor", dataDir)
+    this.dataDir = dataDir || getShorterPathForMutagen(join(ctx.gardenDirPath, MUTAGEN_DIR_NAME))
     this.activeSyncs = {}
     this.monitoring = false
 
@@ -621,6 +640,7 @@ export class Mutagen {
   private async execCommand(args: string[]) {
     let loops = 0
     const maxRetries = 10
+    console.log("execCommand", this.dataDir)
     await ensureDataDir(this.dataDir)
 
     while (true) {

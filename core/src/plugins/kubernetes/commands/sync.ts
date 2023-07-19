@@ -7,9 +7,9 @@
  */
 
 import chalk from "chalk"
-import { getMutagenEnv, mutagenCliSpec, parseSyncListResult } from "../../../mutagen"
-import { MUTAGEN_DIR_NAME } from "../../../constants"
-import { join } from "path"
+import { getMutagenDataDir, getMutagenEnv, mutagenCliSpec, parseSyncListResult } from "../../../mutagen"
+// import { MUTAGEN_DIR_NAME } from "../../../constants"
+// import { join } from "path"
 import { pathExists } from "fs-extra"
 import { dedent } from "../../../util/string"
 import { Log } from "../../../logger/log-entry"
@@ -25,6 +25,7 @@ export const syncStatus: PluginCommand = {
 
   handler: async ({ ctx, log }) => {
     const dataDir = getMutagenDataDir(ctx.gardenDirPath)
+    console.log("yoyo-1", dataDir)
     const mutagen = new PluginTool(mutagenCliSpec)
 
     if (!(await pathExists(dataDir))) {
@@ -87,7 +88,7 @@ export const syncPause: PluginCommand = {
         await mutagen.exec({
           cwd: dataDir,
           log,
-          env: getMutagenEnv({ dataDir, log }),
+          env: getMutagenEnv(dataDir),
           args: ["sync", "pause", sessionName],
         })
       }
@@ -133,7 +134,7 @@ export const syncResume: PluginCommand = {
         await mutagen.exec({
           cwd: dataDir,
           log,
-          env: getMutagenEnv({ dataDir, log }),
+          env: getMutagenEnv(dataDir),
           args: ["sync", "resume", sessionName],
         })
       }
@@ -145,15 +146,16 @@ export const syncResume: PluginCommand = {
 }
 
 async function getMutagenSyncSessions({ mutagen, dataDir, log }: { mutagen: PluginTool; dataDir: string; log: Log }) {
+  console.log("yoyo getMutagenSyncSessions", dataDir)
   const res = await mutagen.exec({
     cwd: dataDir,
     log,
-    env: getMutagenEnv({ dataDir, log }),
+    env: getMutagenEnv(dataDir),
     args: ["sync", "list", "--template={{ json . }}"],
   })
   return parseSyncListResult(res)
 }
 
-function getMutagenDataDir(gardenDirPath: string) {
-  return join(gardenDirPath, MUTAGEN_DIR_NAME)
-}
+// function getMutagenDataDir(gardenDirPath: string) {
+//   return join(gardenDirPath, MUTAGEN_DIR_NAME)
+// }

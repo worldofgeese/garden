@@ -167,16 +167,6 @@ const ensureDataDir = pMemoize(async (dataDir: string) => {
   await mkdirp(dataDir)
 })
 
-const getShorterPathForMutagen = (path: string) => {
-  const hash = hasha(path, { algorithm: "sha256" }).slice(0, 9)
-  const shortPath = join(GARDEN_GLOBAL_PATH, MUTAGEN_DIR_NAME, hash)
-  console.log("full path", path, "short path", shortPath)
-  return shortPath
-  // await ensureDataDir(shortPath)
-  // // write full path of corresponding project dir in text file
-  // await writeFile(join(shortPath, 'path.txt'), path)
-}
-
 /**
  * Wrapper around `mutagen sync monitor`. This is used as a singleton, and emits events for instances of
  * `Mutagen` to subscribe to and log as appropriate.
@@ -191,11 +181,7 @@ class _MutagenMonitor extends TypedEventEmitter<MonitorEvents> {
     super()
     this.log = log.createLog({ name: mutagenLogSection })
     this.configLock = new AsyncLock()
-    // data dir symlink to ~/.garden
-    console.log("mutagenmonitor", dataDir)
-    // this.dataDir = getShorterPathForMutagen(dataDir)
     this.dataDir = dataDir
-    console.log("xaxa", this.dataDir)
 
     registerCleanupFunction("stop-mutagen-monitor", () => {
       this.proc?.stop()
@@ -330,6 +316,21 @@ class _MutagenMonitor extends TypedEventEmitter<MonitorEvents> {
   }
 }
 
+export function getMutagenDataDir(path: string) {
+  if (path.length > MUTAGEN_DATA_DIRECTORY_LENGTH_LIMIT) {
+    const hash = hasha(path, { algorithm: "sha256" }).slice(0, 9)
+    const shortPath = join(GARDEN_GLOBAL_PATH, MUTAGEN_DIR_NAME, hash)
+    // console.log("full path", path, "short path", shortPath)
+    console.log(
+      `Your Garden project path looks too long, that might cause errors while starting the syncs. Garden will create a new directory to manage syncs at path: ${shortPath}`
+    )
+    console.log(`Using directory ${shortPath} to manage syncs for the project at path ${path}`)
+    return shortPath
+  }
+  // if path is not too long, then use relative directory to the project
+  return join(path, MUTAGEN_DIR_NAME)
+}
+
 /**
  * A class for managing the Mutagen daemon process and its syncs.
  *
@@ -349,8 +350,7 @@ export class Mutagen {
     this.log = log
     this.configLock = new AsyncLock()
     // todo change here
-    console.log("mutagen constructor", dataDir)
-    this.dataDir = dataDir || getShorterPathForMutagen(join(ctx.gardenDirPath, MUTAGEN_DIR_NAME))
+    this.dataDir = dataDir || getMutagenDataDir(ctx.gardenDirPath)
     this.activeSyncs = {}
     this.monitoring = false
 
@@ -649,7 +649,7 @@ export class Mutagen {
           cwd: this.dataDir,
           args,
           log: this.log,
-          env: getMutagenEnv({ dataDir: this.dataDir, log: this.log }),
+          env: getMutagenEnv(this.dataDir),
         })
       } catch (err) {
         const unableToConnect = err.message.match(/unable to connect to daemon/)
@@ -798,13 +798,21 @@ export interface SyncSession {
  */
 const MUTAGEN_DATA_DIRECTORY_LENGTH_LIMIT = 70
 
-export function getMutagenEnv({ dataDir, log }: { dataDir: string; log: Log }) {
-  if (dataDir.length > MUTAGEN_DATA_DIRECTORY_LENGTH_LIMIT) {
-    emitNonRepeatableWarning(
-      log,
-      `Your Garden project path looks too long, that might cause errors while starting the syncs. Consider using a shorter path (no longer than ${MUTAGEN_DATA_DIRECTORY_LENGTH_LIMIT} characters).`
-    )
-  }
+// export function getMutagenEnv({ dataDir, log }: { dataDir: string; log: Log }) {
+//   console.log("datadir", dataDir)
+//   if (dataDir.length > MUTAGEN_DATA_DIRECTORY_LENGTH_LIMIT) {
+//     emitNonRepeatableWarning(
+//       log,
+//       `Your Garden project path looks too long, that might cause errors while starting the syncs. Consider using a shorter path (no longer than ${MUTAGEN_DATA_DIRECTORY_LENGTH_LIMIT} characters).`
+//     )
+//   }
+//   return {
+//     MUTAGEN_DATA_DIRECTORY: dataDir,
+//   }
+// }
+
+export function getMutagenEnv(dataDir: string) {
+  console.log("getmutagenenv", dataDir)
   return {
     MUTAGEN_DATA_DIRECTORY: dataDir,
   }

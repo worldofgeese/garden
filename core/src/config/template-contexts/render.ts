@@ -6,7 +6,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-import { DeepPrimitiveMap, joiVariables } from "../common"
+import { DeepPrimitiveMap, joiIdentifierMap, joiPrimitive, joiVariables } from "../common"
 import { ParentContext, schema, TemplateContext } from "./base"
 import { ProjectConfigContext, ProjectConfigContextParams } from "./project"
 
@@ -24,12 +24,28 @@ export class RenderTemplateConfigContext extends ProjectConfigContext {
   )
   public inputs: DeepPrimitiveMap
 
+  @schema(
+    joiVariables().description(`The inputs provided when resolving the template.`).meta({
+      keyPlaceholder: "<input-key>",
+    })
+  )
+  public variables: DeepPrimitiveMap
+
+  @schema(joiIdentifierMap(joiPrimitive()).description("Alias for the variables field."))
+  public var: DeepPrimitiveMap
+
   constructor(
-    params: { parentName: string; templateName: string; inputs: DeepPrimitiveMap } & ProjectConfigContextParams
+    params: {
+      parentName: string
+      templateName: string
+      inputs: DeepPrimitiveMap
+      variables: DeepPrimitiveMap
+    } & ProjectConfigContextParams
   ) {
     super(params)
     this.parent = new ParentContext(this, params.parentName)
     this.template = new TemplateContext(this, params.templateName)
     this.inputs = params.inputs
+    this.variables = this.var = params.variables
   }
 }

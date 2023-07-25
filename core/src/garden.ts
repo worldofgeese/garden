@@ -1349,7 +1349,12 @@ export class Garden {
 
       // Resolve Render configs
       const renderResults = await Bluebird.map(renderConfigs, (config) =>
-        renderConfigTemplate({ garden: this, log: this.log, config, templates: templatesByName })
+        renderConfigTemplate({
+          garden: this,
+          log: this.log,
+          config,
+          templates: templatesByName,
+        })
       )
       const actionsFromTemplates = renderResults.flatMap((r) => r.configs.filter(isActionConfig))
       const modulesFromTemplates = renderResults.flatMap((r) => r.modules)

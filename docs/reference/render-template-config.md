@@ -37,6 +37,10 @@ template:
 # reference](./template-strings/environments.md) to see template strings that are safe to use for inputs used to
 # generate config identifiers.
 inputs:
+
+# Key/value map of variables to configure the current action. Keys may contain letters and numbers. Any values are
+# permitted, including arrays and objects of any nesting.
+variables: {}
 ```
 
 ## Configuration Keys
@@ -81,4 +85,12 @@ Note: You can use template strings for the inputs, but be aware that inputs that
 | Type     | Required |
 | -------- | -------- |
 | `object` | No       |
+
+### `variables`
+
+Key/value map of variables to configure the current action. Keys may contain letters and numbers. Any values are permitted, including arrays and objects of any nesting.
+
+| Type     | Default | Required |
+| -------- | ------- | -------- |
+| `object` | `{}`    | No       |
 

@@ -28,7 +28,15 @@ import type { TemplatedModuleConfig } from "../plugins/templated"
 import { omit } from "lodash"
 import { EnvironmentConfigContext } from "./template-contexts/project"
 import { ConfigTemplateConfig, TemplatableConfig, templatableKinds, templateNoTemplateFields } from "./config-template"
-import { createSchema, joi, joiIdentifier, joiUserIdentifier, unusedApiVersionSchema } from "./common"
+import {
+  createSchema,
+  joi,
+  joiIdentifier,
+  joiUserIdentifier,
+  joiVariables,
+  joiVariablesDescription,
+  unusedApiVersionSchema,
+} from "./common"
 import { DeepPrimitiveMap } from "@garden-io/platform-api-types"
 import { RenderTemplateConfigContext } from "./template-contexts/render"
 import { Log } from "../logger/log-entry"
@@ -52,6 +60,9 @@ export const renderTemplateConfigSchema = createSchema({
       Note: You can use template strings for the inputs, but be aware that inputs that are used to generate the resulting config names and other top-level identifiers must be resolvable when scanning for configs, and thus cannot reference other actions, modules or runtime variables. See the [environment configuration context reference](./template-strings/environments.md) to see template strings that are safe to use for inputs used to generate config identifiers.
       `
     ),
+    variables: joiVariables().description(
+      "Key/value map of variables to configure the current action. " + joiVariablesDescription
+    ),
   }),
 })
 
@@ -60,6 +71,7 @@ export interface RenderTemplateConfig extends BaseGardenResource {
   disabled?: boolean
   template: string
   inputs?: DeepPrimitiveMap
+  variables?: DeepPrimitiveMap
 }
 
 // TODO: remove in 0.14
@@ -94,6 +106,7 @@ export function convertTemplatedModuleToRender(config: TemplatedModuleConfig): R
 
     template: config.spec.template,
     inputs: config.spec.inputs,
+    variables: config.variables,
   }
 }
 
@@ -115,8 +128,7 @@ export async function renderConfigTemplate({
   templates: { [name: string]: ConfigTemplateConfig }
 }): Promise<RenderConfigTemplateResult> {
   // Resolve template strings for fields. Note that inputs are partially resolved, and will be fully resolved later
-  // when resolving the resolving the resulting modules. Inputs that are used in module names must however be resolvable
-  // immediately.
+  // when resolving the resulting modules. Inputs that are used in module names must however be resolvable immediately.
   const loggedIn = garden.isLoggedIn()
   const enterpriseDomain = garden.cloudApi?.domain
   const templateContext = new EnvironmentConfigContext({ ...garden, loggedIn, enterpriseDomain })
@@ -166,6 +178,7 @@ export async function renderConfigTemplate({
     parentName: resolved.name,
     templateName: template.name,
     inputs: partiallyResolvedInputs,
+    variables: config.variables || {},
   })
 
   // TODO: remove in 0.14

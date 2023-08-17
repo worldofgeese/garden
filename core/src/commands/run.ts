@@ -21,7 +21,7 @@ import { printHeader } from "../logger/util"
 import { ParameterError } from "../exceptions"
 import { dedent, deline } from "../util/string"
 import { BooleanParameter, StringsParameter } from "../cli/params"
-import { validateActionSearchResults, watchParameter, watchRemovedWarning } from "./helpers"
+import { parseSkipDependenciesOpt, validateActionSearchResults, watchParameter, watchRemovedWarning } from "./helpers"
 import { Log } from "../logger/log-entry"
 import { TestCommand } from "./test"
 import { WorkflowCommand, WorkflowRunOutput } from "./workflow"
@@ -139,7 +139,6 @@ export class RunCommand extends Command<Args, Opts> {
     const graph = await garden.getConfigGraph({ log, emit: true })
 
     const force = opts.force
-    const skipRuntimeDependencies = opts["skip-dependencies"]
 
     if (!names && !opts.module) {
       throw new ParameterError({
@@ -194,8 +193,7 @@ export class RunCommand extends Command<Args, Opts> {
           force,
           forceBuild: opts["force-build"],
           action,
-
-          skipRuntimeDependencies,
+          skipRuntimeDependencies: parseSkipDependenciesOpt(opts["skip-dependencies"]),
           // interactive: opts.interactive,
         })
     )

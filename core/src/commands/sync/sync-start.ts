@@ -149,7 +149,7 @@ export class SyncStartCommand extends Command<Args, Opts> {
           action,
           force: false,
           forceActions: [],
-          skipRuntimeDependencies: !opts["with-dependencies"],
+          skipRuntimeDependencies: !opts["with-dependencies"] ? "auto" : "always",
           startSync: true,
         })
         if (opts.monitor) {
@@ -209,7 +209,7 @@ export async function startSyncWithoutDeploy({
       action,
       force: false,
       forceActions: [],
-      skipRuntimeDependencies: true,
+      skipRuntimeDependencies: "always",
       startSync: true,
     })
   })

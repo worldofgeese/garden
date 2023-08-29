@@ -17,7 +17,8 @@ import {
 import { resolve } from "path"
 import { joi } from "../../../../src/config/common"
 import { pathExists, remove } from "fs-extra"
-import { cloneDeep } from "lodash"
+import cloneDeep from "fast-copy"
+
 import { configTemplateKind, renderTemplateKind } from "../../../../src/config/base"
 import { RenderTemplateConfig, renderConfigTemplate } from "../../../../src/config/render-template"
 import { Log } from "../../../../src/logger/log-entry"
@@ -80,14 +81,14 @@ describe("config templates", () => {
       })
     })
 
-    it("defaults to an empty object schema for inputs", async () => {
+    it("defaults to an object with any properties for schema", async () => {
       const config: ConfigTemplateResource = {
         ...defaults,
       }
       const resolved = await resolveConfigTemplate(garden, config)
       expect((<any>resolved.inputsSchema)._rules[0].args.jsonSchema.schema).to.eql({
         type: "object",
-        additionalProperties: false,
+        additionalProperties: true,
       })
     })
 

@@ -140,6 +140,9 @@ export async function syncToBuildSync(params: SyncToSharedBuildSyncParams) {
           targetPath,
         }),
         mode: "one-way-replica",
+        // make files world and group readable by default. This is also the default for git.
+        defaultFileMode: 0o644,
+        defaultDirectoryMode: 0o755,
         ignore: [],
       },
     })
@@ -233,8 +236,6 @@ export async function skopeoBuildStatus({
     if (res.exitCode !== 0 && !skopeoManifestUnknown(res.stderr)) {
       const output = res.allLogs || err.message
 
-      // TODO: if a registry does not have an image with the name at all, we throw here
-      // This isn't a great first-time-use experience (or after you've reset a registry)
       throw new RuntimeError({
         message: `Unable to query registry for image status: ${output}`,
         detail: {
@@ -247,11 +248,19 @@ export async function skopeoBuildStatus({
   }
 }
 
+/**
+ Returns `true` if the error implies the registry does not have a manifest with the given name.
+ Useful for e.g. when getting the build status for an image that has never been pushed before.
+ */
 export function skopeoManifestUnknown(errMsg: string | null | undefined): boolean {
   if (!errMsg) {
     return false
   }
-  return errMsg.includes("manifest unknown") || /(artifact|repository) [^ ]+ not found/.test(errMsg)
+  return (
+    errMsg.includes("manifest unknown") ||
+    errMsg.includes("name unknown") ||
+    /(artifact|repository) [^ ]+ not found/.test(errMsg)
+  )
 }
 
 /**

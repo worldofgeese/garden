@@ -6,16 +6,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-import { resolve } from "path"
-import { readFile } from "fs-extra"
-import Bluebird from "bluebird"
+import { join, resolve } from "path"
+import { pathExists, readFile } from "fs-extra"
 import { flatten, set } from "lodash"
 import { loadAll } from "js-yaml"
 
 import { KubernetesModule } from "./module-config"
 import { KubernetesResource } from "../types"
 import { KubeApi } from "../api"
-import { gardenAnnotationKey } from "../../../util/string"
+import { dedent, gardenAnnotationKey, naturalList } from "../../../util/string"
 import { Log } from "../../../logger/log-entry"
 import { PluginContext } from "../../../plugin-context"
 import { ConfigurationError, PluginError } from "../../../exceptions"
@@ -24,10 +23,27 @@ import { HelmModule } from "../helm/module-config"
 import { KubernetesDeployAction } from "./config"
 import { CommonRunParams } from "../../../plugin/handlers/Run/run"
 import { runAndCopy } from "../run"
-import { getTargetResource, getResourcePodSpec, getResourceContainer, makePodName } from "../util"
+import { getResourceContainer, getResourcePodSpec, getTargetResource, makePodName } from "../util"
 import { Resolved } from "../../../actions/types"
 import { KubernetesPodRunAction, KubernetesPodTestAction } from "./kubernetes-pod"
 import { glob } from "glob"
+import isGlob from "is-glob"
+import pFilter from "p-filter"
+
+/**
+ * "DeployFile": Manifest has been read from one of the files declared in Garden Deploy `spec.files`
+ * "DeployInline": Manifest has been declared inline using Garden Deploy `spec.manifests`
+ * "DeployKustomize": Manifest has been declared inline using Garden Deploy `spec.manifests`
+ */
+type ManifestDeclarationInfo =
+  | { type: "file"; filename: string; index: number }
+  | { type: "inline"; filename?: string; index: number }
+  | { type: "kustomize"; path: string; index: number }
+
+type DeclaredManifest = {
+  declaration: ManifestDeclarationInfo
+  manifest: KubernetesResource
+}
 
 /**
  * Reads the manifests and makes sure each has a namespace set (when applicable) and adds annotations.
@@ -48,11 +64,274 @@ export async function getManifests({
   defaultNamespace: string
   readFromSrcDir?: boolean
 }): Promise<KubernetesResource[]> {
-  const rawManifests = (await readManifests(ctx, action, log, readFromSrcDir)) as KubernetesResource[]
+  const declaredManifests: DeclaredManifest[] = await Promise.all(
+    (await readManifests(ctx, action, log, readFromSrcDir)).map(async ({ manifest, declaration }) => {
+      // Ensure a namespace is set, if not already set, and if required by the resource type
+      if (!manifest.metadata?.namespace) {
+        if (!manifest.metadata) {
+          // TODO: Type system complains that name is missing
+          ;(manifest as any).metadata = {}
+        }
 
-  // remove *List objects
-  const manifests = rawManifests.flatMap((manifest) => {
-    if (manifest.kind.endsWith("List")) {
+        const info = await api.getApiResourceInfo(log, manifest.apiVersion, manifest.kind)
+
+        if (info?.namespaced) {
+          manifest.metadata.namespace = defaultNamespace
+        }
+      }
+
+      /**
+       * Set Garden annotations.
+       *
+       * For namespace resources, we use the namespace's name as the annotation value, to ensure that namespace resources
+       * with different names aren't considered by Garden to be the same resource.
+       *
+       * This is relevant e.g. in the context of a shared dev cluster, where several users might create their own
+       * copies of a namespace resource (each named e.g. "${username}-some-namespace") through deploying a `kubernetes`
+       * module that includes a namespace resource in its manifests.
+       */
+      const annotationValue =
+        manifest.kind === "Namespace" ? gardenNamespaceAnnotationValue(manifest.metadata.name) : action.name
+      set(manifest, ["metadata", "annotations", gardenAnnotationKey("service")], annotationValue)
+      set(manifest, ["metadata", "annotations", gardenAnnotationKey("mode")], action.mode())
+      set(manifest, ["metadata", "labels", gardenAnnotationKey("service")], annotationValue)
+
+      return { manifest, declaration }
+    })
+  )
+
+  validateDeclaredManifests(declaredManifests)
+
+  return declaredManifests.map((m) => m.manifest)
+}
+
+/**
+ * We use this annotation value for namespace resources to avoid potential conflicts with module names (since module
+ * names can't start with `garden`).
+ */
+export function gardenNamespaceAnnotationValue(namespaceName: string) {
+  return `garden-namespace--${namespaceName}`
+}
+
+/**
+ * Verifies that there are no duplicates for every name, kind and namespace.
+ *
+ * This verification is important because otherwise this error would lead to several kinds of undefined behaviour.
+ */
+export function validateDeclaredManifests(declaredManifests: DeclaredManifest[]) {
+  const renderManifestDeclaration = (m: DeclaredManifest): string => {
+    switch (m.declaration.type) {
+      case "file":
+        return `${m.manifest.kind} ${m.manifest.metadata.name} declared in the file ${m.declaration.filename} (index: ${m.declaration.index})`
+      case "inline":
+        return `${m.manifest.kind} ${m.manifest.metadata.name} declared inline in the Garden configuration (filename: ${
+          m.declaration.filename || "unknown"
+        }, index: ${m.declaration.index})`
+      case "kustomize":
+        return `${m.manifest.kind} ${m.manifest.metadata.name} generated by Kustomize at path ${m.declaration.path} (index: ${m.declaration.index})`
+    }
+  }
+
+  for (const examinee of declaredManifests) {
+    const duplicate = declaredManifests.find(
+      (candidate) =>
+        examinee !== candidate &&
+        examinee.manifest.kind === candidate.manifest.kind &&
+        examinee.manifest.metadata.name === candidate.manifest.metadata.name &&
+        examinee.manifest.metadata.namespace === candidate.manifest.metadata.namespace
+    )
+
+    if (duplicate) {
+      throw new ConfigurationError({
+        message: dedent`
+          Duplicate manifest definition: ${duplicate.manifest.kind} named ${
+            duplicate.manifest.metadata.name
+          } is declared more than once:
+
+          - ${renderManifestDeclaration(duplicate)}
+          - ${renderManifestDeclaration(examinee)}
+          `,
+        detail: {
+          manifestDeclarations: [examinee, duplicate],
+        },
+      })
+    }
+  }
+}
+
+/**
+ * Read the manifests from the module config, as well as any referenced files in the config.
+ *
+ * @param module The kubernetes module to read manifests for.
+ * @param readFromSrcDir Whether or not to read the manifests from the module build dir or from the module source dir.
+ * In general we want to read from the build dir to ensure that manifests added via the `build.dependencies[].copy`
+ * field will be included. However, in some cases, e.g. when getting the service status, we can't be certain that
+ * the build has been staged and we therefore read the manifests from the source.
+ *
+ * TODO: Remove this once we're checking for kubernetes module service statuses with version hashes.
+ */
+async function readManifests(
+  ctx: PluginContext,
+  action: Resolved<KubernetesDeployAction | KubernetesPodRunAction | KubernetesPodTestAction>,
+  log: Log,
+  readFromSrcDir = false
+): Promise<DeclaredManifest[]> {
+  const manifestPath = readFromSrcDir ? action.basePath() : action.getBuildPath()
+
+  const inlineManifests = readInlineManifests(action)
+  const fileManifests = await readFileManifests(ctx, action, log, manifestPath)
+  const kustomizeManifests = await readKustomizeManifests(ctx, action, log, manifestPath)
+
+  return [...inlineManifests, ...fileManifests, ...kustomizeManifests]
+}
+
+function readInlineManifests(
+  action: Resolved<KubernetesDeployAction | KubernetesPodRunAction | KubernetesPodTestAction>
+): DeclaredManifest[] {
+  const manifests = expandListManifests(action.getSpec().manifests)
+  return manifests.map((manifest, index) => ({
+    declaration: {
+      type: "inline",
+      filename: action.configPath(),
+      index,
+    },
+    manifest,
+  }))
+}
+
+const disallowedKustomizeArgs = ["-o", "--output", "-h", "--help"]
+
+async function readKustomizeManifests(
+  ctx: PluginContext,
+  action: Resolved<KubernetesDeployAction | KubernetesPodRunAction | KubernetesPodTestAction>,
+  log: Log,
+  manifestPath: string
+): Promise<DeclaredManifest[]> {
+  const spec = action.getSpec()
+
+  if (!spec.kustomize?.path) {
+    return []
+  }
+
+  const kustomizePath = spec.kustomize!.path
+  const kustomize = ctx.tools["kubernetes.kustomize"]
+
+  const extraArgs = spec.kustomize.extraArgs || []
+
+  for (const arg of disallowedKustomizeArgs) {
+    if (extraArgs.includes(arg)) {
+      throw new ConfigurationError({
+        message: `kustomize.extraArgs must not include any of ${disallowedKustomizeArgs.join(", ")}`,
+        detail: {
+          spec,
+          extraArgs,
+        },
+      })
+    }
+  }
+
+  try {
+    const kustomizeOutput = await kustomize.stdout({
+      cwd: manifestPath,
+      log,
+      args: ["build", kustomizePath, ...extraArgs],
+    })
+    const manifests = expandListManifests(loadAll(kustomizeOutput) as KubernetesResource[])
+    return manifests.map((manifest, index) => ({
+      declaration: {
+        type: "kustomize",
+        path: join(manifestPath, kustomizePath),
+        index,
+      },
+      manifest,
+    }))
+  } catch (error) {
+    throw new PluginError({
+      message: `Failed resolving kustomize manifests: ${error.message}`,
+      detail: {
+        error,
+        spec,
+      },
+    })
+  }
+}
+
+async function readFileManifests(
+  ctx: PluginContext,
+  action: Resolved<KubernetesDeployAction | KubernetesPodRunAction | KubernetesPodTestAction>,
+  log: Log,
+  manifestPath: string
+): Promise<DeclaredManifest[]> {
+  const spec = action.getSpec()
+  const specFiles = spec.files
+  const regularPaths = specFiles.filter((f) => !isGlob(f))
+  const missingPaths = await pFilter(regularPaths, async (regularPath) => {
+    const resolvedPath = resolve(manifestPath, regularPath)
+    return !(await pathExists(resolvedPath))
+  })
+  if (missingPaths.length) {
+    throw new ConfigurationError({
+      message: `Invalid manifest file path(s) in ${action.kind} action '${
+        action.name
+      }'. Cannot find manifest file(s) at ${naturalList(missingPaths)} in ${manifestPath} directory.`,
+      detail: {
+        action: {
+          kind: action.kind,
+          name: action.name,
+          type: action.type,
+          spec: {
+            files: specFiles,
+          },
+        },
+        missingPaths,
+      },
+    })
+  }
+
+  const resolvedFiles = await glob(specFiles, { cwd: manifestPath })
+  if (specFiles.length > 0 && resolvedFiles.length === 0) {
+    throw new ConfigurationError({
+      message: `Invalid manifest file path(s) in ${action.kind} action '${
+        action.name
+      }'. Cannot find any manifest files for paths ${naturalList(specFiles)} in ${manifestPath} directory.`,
+      detail: {
+        action: {
+          kind: action.kind,
+          name: action.name,
+          type: action.type,
+          spec: {
+            files: specFiles,
+          },
+        },
+        resolvedFiles,
+      },
+    })
+  }
+
+  return flatten(
+    await Promise.all(
+      resolvedFiles.map(async (path): Promise<DeclaredManifest[]> => {
+        const absPath = resolve(manifestPath, path)
+        log.debug(`Reading manifest for ${action.longDescription()} from path ${absPath}`)
+        const str = (await readFile(absPath)).toString()
+        const resolved = ctx.resolveTemplateStrings(str, { allowPartial: true, unescape: true })
+        const manifests = expandListManifests(loadAll(resolved) as KubernetesResource[])
+        return manifests.map((manifest, index) => ({
+          declaration: {
+            type: "file",
+            filename: absPath,
+            index,
+          },
+          manifest,
+        }))
+      })
+    )
+  )
+}
+
+function expandListManifests(manifests: KubernetesResource[]): KubernetesResource[] {
+  return manifests.flatMap((manifest) => {
+    if (manifest?.kind?.endsWith("List")) {
       if (!manifest.items || manifest.items.length === 0) {
         // empty list
         return []
@@ -70,123 +349,6 @@ export async function getManifests({
     }
     return manifest
   })
-
-  return Bluebird.map(manifests, async (manifest) => {
-    // Ensure a namespace is set, if not already set, and if required by the resource type
-    if (!manifest.metadata?.namespace) {
-      if (!manifest.metadata) {
-        // TODO: Type system complains that name is missing
-        ;(manifest as any).metadata = {}
-      }
-
-      const info = await api.getApiResourceInfo(log, manifest.apiVersion, manifest.kind)
-
-      if (info?.namespaced) {
-        manifest.metadata.namespace = defaultNamespace
-      }
-    }
-
-    /**
-     * Set Garden annotations.
-     *
-     * For namespace resources, we use the namespace's name as the annotation value, to ensure that namespace resources
-     * with different names aren't considered by Garden to be the same resource.
-     *
-     * This is relevant e.g. in the context of a shared dev cluster, where several users might create their own
-     * copies of a namespace resource (each named e.g. "${username}-some-namespace") through deploying a `kubernetes`
-     * module that includes a namespace resource in its manifests.
-     */
-    const annotationValue =
-      manifest.kind === "Namespace" ? gardenNamespaceAnnotationValue(manifest.metadata.name) : action.name
-    set(manifest, ["metadata", "annotations", gardenAnnotationKey("service")], annotationValue)
-    set(manifest, ["metadata", "annotations", gardenAnnotationKey("mode")], action.mode())
-    set(manifest, ["metadata", "labels", gardenAnnotationKey("service")], annotationValue)
-
-    return manifest
-  })
-}
-
-const disallowedKustomizeArgs = ["-o", "--output", "-h", "--help"]
-
-/**
- * Read the manifests from the module config, as well as any referenced files in the config.
- *
- * @param module The kubernetes module to read manifests for.
- * @param readFromSrcDir Whether or not to read the manifests from the module build dir or from the module source dir.
- * In general we want to read from the build dir to ensure that manifests added via the `build.dependencies[].copy`
- * field will be included. However, in some cases, e.g. when getting the service status, we can't be certain that
- * the build has been staged and we therefore read the manifests from the source.
- *
- * TODO: Remove this once we're checking for kubernetes module service statuses with version hashes.
- */
-export async function readManifests(
-  ctx: PluginContext,
-  action: Resolved<KubernetesDeployAction | KubernetesPodRunAction | KubernetesPodTestAction>,
-  log: Log,
-  readFromSrcDir = false
-) {
-  const manifestPath = readFromSrcDir ? action.basePath() : action.getBuildPath()
-
-  const spec = action.getSpec()
-
-  const files = await glob(spec.files, { cwd: manifestPath })
-
-  const fileManifests = flatten(
-    await Bluebird.map(files, async (path) => {
-      const absPath = resolve(manifestPath, path)
-      log.debug(`Reading manifest for ${action.longDescription()} from path ${absPath}`)
-      const str = (await readFile(absPath)).toString()
-      const resolved = ctx.resolveTemplateStrings(str, { allowPartial: true, unescape: true })
-      return loadAll(resolved)
-    })
-  )
-
-  let kustomizeManifests: any[] = []
-
-  if (spec.kustomize?.path) {
-    const kustomize = ctx.tools["kubernetes.kustomize"]
-
-    const extraArgs = spec.kustomize.extraArgs || []
-
-    for (const arg of disallowedKustomizeArgs) {
-      if (extraArgs.includes(arg)) {
-        throw new ConfigurationError({
-          message: `kustomize.extraArgs must not include any of ${disallowedKustomizeArgs.join(", ")}`,
-          detail: {
-            spec,
-            extraArgs,
-          },
-        })
-      }
-    }
-
-    try {
-      const kustomizeOutput = await kustomize.stdout({
-        cwd: manifestPath,
-        log,
-        args: ["build", spec.kustomize.path, ...extraArgs],
-      })
-      kustomizeManifests = loadAll(kustomizeOutput)
-    } catch (error) {
-      throw new PluginError({
-        message: `Failed resolving kustomize manifests: ${error.message}`,
-        detail: {
-          error,
-          spec,
-        },
-      })
-    }
-  }
-
-  return [...spec.manifests, ...fileManifests, ...kustomizeManifests]
-}
-
-/**
- * We use this annotation value for namespace resources to avoid potential conflicts with module names (since module
- * names can't start with `garden`).
- */
-export function gardenNamespaceAnnotationValue(namespaceName: string) {
-  return `garden-namespace--${namespaceName}`
 }
 
 export function convertServiceResource(

@@ -10,7 +10,8 @@ import Joi, { SchemaLike } from "@hapi/joi"
 import Ajv from "ajv"
 import addFormats from "ajv-formats"
 import { splitLast, deline, dedent, naturalList, titleize } from "../util/string"
-import { cloneDeep, isArray, isPlainObject, isString, mapValues, memoize } from "lodash"
+import cloneDeep from "fast-copy"
+import { isArray, isPlainObject, isString, mapValues, memoize } from "lodash"
 import { joiPathPlaceholder } from "./validation"
 import { DOCS_BASE_URL, GardenApiVersion } from "../constants"
 import { ActionKind, actionKinds, actionKindsLower } from "../actions/types"
@@ -82,6 +83,8 @@ interface MetadataKeys {
   // Advise which template context is available for the field, for documentation purposes
   // Set to null if no templating is supported for the field.
   templateContext?: ConfigContextType | null
+  // Flag to be used with numbers, if the default value should be rendered in octal representation.
+  isOctal?: boolean
 }
 
 // Need this to fix the Joi typing

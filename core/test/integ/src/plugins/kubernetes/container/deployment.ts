@@ -18,7 +18,8 @@ import {
 import { KubernetesPluginContext, KubernetesProvider } from "../../../../../../src/plugins/kubernetes/config"
 import { V1ConfigMap, V1Secret } from "@kubernetes/client-node"
 import { KubernetesResource, KubernetesWorkload } from "../../../../../../src/plugins/kubernetes/types"
-import { cloneDeep, keyBy } from "lodash"
+import cloneDeep from "fast-copy"
+import { keyBy } from "lodash"
 import { getContainerTestGarden } from "./container"
 import { DeployTask } from "../../../../../../src/tasks/deploy"
 import { TestGarden, expectError, findNamespaceStatusEvent, grouped } from "../../../../../helpers"
@@ -51,6 +52,7 @@ import { ResolvedDeployAction } from "../../../../../../src/actions/deploy"
 import { ActionRouter } from "../../../../../../src/router/router"
 import { ActionMode } from "../../../../../../src/actions/types"
 import { createActionLog } from "../../../../../../src/logger/log-entry"
+import { K8_POD_DEFAULT_CONTAINER_ANNOTATION_KEY } from "../../../../../../src/plugins/kubernetes/run"
 
 describe("kubernetes container deployment handlers", () => {
   let garden: TestGarden
@@ -289,7 +291,9 @@ describe("kubernetes container deployment handlers", () => {
           selector: { matchLabels: { [gardenAnnotationKey("action")]: action.key() } },
           template: {
             metadata: {
-              annotations: {},
+              annotations: {
+                [K8_POD_DEFAULT_CONTAINER_ANNOTATION_KEY]: "simple-service",
+              },
               labels: getDeploymentLabels(action),
             },
             spec: {
@@ -331,7 +335,10 @@ describe("kubernetes container deployment handlers", () => {
       const action = await resolveDeployAction("simple-service")
       const namespace = provider.config.namespace!.name!
 
-      action["_config"].spec.annotations = { "annotation.key": "someValue" }
+      action["_config"].spec.annotations = {
+        "annotation.key": "someValue",
+        [K8_POD_DEFAULT_CONTAINER_ANNOTATION_KEY]: "simple-service",
+      }
 
       const resource = await createWorkloadManifest({
         ctx,

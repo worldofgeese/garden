@@ -8,7 +8,8 @@
 
 import tar from "tar"
 import tmp from "tmp-promise"
-import { cloneDeep, omit, pick, some } from "lodash"
+import cloneDeep from "fast-copy"
+import { omit, pick, some } from "lodash"
 import { Log } from "../../logger/log-entry"
 import { CoreV1Event } from "@kubernetes/client-node"
 import {
@@ -45,6 +46,9 @@ import { RunResult } from "../../plugin/base"
 import { LogLevel } from "../../logger/logger"
 import { getResourceEvents } from "./status/events"
 import stringify from "json-stringify-safe"
+
+// ref: https://kubernetes.io/docs/reference/labels-annotations-taints/#kubectl-kubernetes-io-default-container
+export const K8_POD_DEFAULT_CONTAINER_ANNOTATION_KEY = "kubectl.kubernetes.io/default-container"
 
 /**
  * When a `podSpec` is passed to `runAndCopy`, only these fields will be used for the runner's pod spec
@@ -1047,7 +1051,29 @@ export class PodRunner extends PodRunnerParams {
     }
 
     const startedAt = new Date()
-    const containerName = container || this.pod.spec.containers[0].name
+    let containerName = container
+    if (!containerName) {
+      // if no container name is specified, check if the Pod has annotation kubectl.kubernetes.io/default-container
+      const defaultAnnotationContainer = this.pod.metadata.annotations
+        ? this.pod.metadata.annotations[K8_POD_DEFAULT_CONTAINER_ANNOTATION_KEY]
+        : undefined
+
+      if (defaultAnnotationContainer) {
+        containerName = defaultAnnotationContainer
+        if (this.pod.spec.containers.length > 1) {
+          log.info(
+            // in case there are more than 1 containers and exec picks container with annotation
+            `Defaulted container ${containerName} due to the annotation ${K8_POD_DEFAULT_CONTAINER_ANNOTATION_KEY}.`
+          )
+        }
+      } else {
+        containerName = this.pod.spec.containers[0].name
+        if (this.pod.spec.containers.length > 1) {
+          const allContainerNames = this.pod.spec.containers.map((c) => c.name)
+          log.info(`Defaulted container ${containerName} out of: ${allContainerNames.join(", ")}.`)
+        }
+      }
+    }
 
     log.debug(`Execing command in ${this.namespace}/Pod/${this.podName}/${containerName}: ${command.join(" ")}`)
     const startTime = new Date(Date.now())
@@ -1211,6 +1237,14 @@ export class PodRunner extends PodRunnerParams {
       throw err
     }
 
+    function renderDiagnosticErrorMessage(error: KnownError): string | undefined {
+      if (error.type === "pod-runner" && error.detail.podStatus) {
+        return `PodStatus:\n${stringify(error.detail.podStatus, null, 2)}`
+      } else {
+        return undefined
+      }
+    }
+
     function renderError(error: KnownError): string {
       const errorDetail = error.detail
       const logs = errorDetail.logs
@@ -1228,7 +1262,6 @@ export class PodRunner extends PodRunnerParams {
 
           const containerState = errorDetail.containerStatus?.state
           const terminatedContainerState = containerState?.terminated
-          const podStatus = errorDetail.podStatus
 
           if (!!terminatedContainerState) {
             let terminationDesc = ""
@@ -1238,19 +1271,16 @@ export class PodRunner extends PodRunnerParams {
             if (!!terminatedContainerState.signal) {
               terminationDesc += `Stopped with signal: ${terminatedContainerState.signal}. `
             }
-            terminationDesc += `Reason: ${terminatedContainerState.reason || "unknown"}. `
-            terminationDesc += `Message: ${terminatedContainerState.message || "n/a"}.`
+            if (terminatedContainerState.reason) {
+              terminationDesc += `Reason: ${terminatedContainerState.reason}. `
+            }
+            if (terminatedContainerState.message) {
+              terminationDesc += `Message: ${terminatedContainerState.message}.`
+            }
             terminationDesc = terminationDesc.trim()
 
             if (!!terminationDesc) {
               errorDesc += terminationDesc + "\n\n"
-            }
-          }
-          // Print Pod status if case of too generic and non-informative error in the terminated state
-          if (!terminatedContainerState?.message && terminatedContainerState?.reason === "Error") {
-            if (!!podStatus) {
-              const podStatusDesc = "PodStatus:\n" + stringify(podStatus, null, 2)
-              errorDesc += podStatusDesc + "\n\n"
             }
           }
 
@@ -1280,9 +1310,9 @@ export class PodRunner extends PodRunnerParams {
       }
     }
 
-    const log = renderError(err)
     return {
-      log,
+      log: renderError(err),
+      diagnosticErrorMsg: renderDiagnosticErrorMessage(err),
       moduleName,
       version,
       success: false,
@@ -1290,6 +1320,7 @@ export class PodRunner extends PodRunnerParams {
       completedAt: new Date(),
       command,
       exitCode: err.detail.exitCode,
+      errorDetail: err.detail,
     }
   }
 }

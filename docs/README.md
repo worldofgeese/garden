@@ -7,6 +7,7 @@
 * [How Garden Works](./basics/how-garden-works.md)
 * [Quickstart Guide](./basics/quickstart.md)
 * [The Stack Graph (Terminology)](./basics/stack-graph.md)
+* [Garden vs Other Tools](./basics/garden-vs-other-tools.md)
 
 ## 🌻 Garden Seeds
 
@@ -27,14 +28,14 @@
 
 * [Configuration Overview](./using-garden/configuration-overview.md)
 * [Projects](./using-garden/projects.md)
-* [Modules](./using-garden/modules.md)
+* [Actions](./using-garden/actions.md)
 * [Tests](./using-garden/tests.md)
 * [Runs](./using-garden/runs.md)
 * [Workflows](./using-garden/workflows.md)
 * [Variables and templating](./using-garden/variables-and-templating.md)
 * [Config Templates](./using-garden/config-templates.md)
-* [Actions](./using-garden/actions.md)
 * [Using the CLI](./using-garden/using-the-cli.md)
+* [Modules](./using-garden/modules.md)
 
 ## 🌺 Kubernetes Plugins
 
@@ -142,19 +143,6 @@
     * [`helm-pod` Test](./reference/action-types/Test/helm-pod.md)
     * [`kubernetes-exec` Test](./reference/action-types/Test/kubernetes-exec.md)
     * [`kubernetes-pod` Test](./reference/action-types/Test/kubernetes-pod.md)
-* [Module Types](./reference/module-types/README.md)
-  * [`configmap`](./reference/module-types/configmap.md)
-  * [`conftest`](./reference/module-types/conftest.md)
-  * [`container`](./reference/module-types/container.md)
-  * [`exec`](./reference/module-types/exec.md)
-  * [`hadolint`](./reference/module-types/hadolint.md)
-  * [`helm`](./reference/module-types/helm.md)
-  * [`jib-container`](./reference/module-types/jib-container.md)
-  * [`kubernetes`](./reference/module-types/kubernetes.md)
-  * [`persistentvolumeclaim`](./reference/module-types/persistentvolumeclaim.md)
-  * [`pulumi`](./reference/module-types/pulumi.md)
-  * [`templated`](./reference/module-types/templated.md)
-  * [`terraform`](./reference/module-types/terraform.md)
 * [Template Strings](./reference/template-strings/README.md)
   * [Project template context](./reference/template-strings/projects.md)
   * [Environment template context](./reference/template-strings/environments.md)
@@ -171,10 +159,23 @@
 * [Commands](./reference/commands.md)
 * [Project Configuration](./reference/project-config.md)
 * [ConfigTemplate Reference](./reference/config-template-config.md)
-* [Module Template Configuration](./reference/module-template-config.md)
 * [RenderTemplate Reference](./reference/render-template-config.md)
 * [Workflow Configuration](./reference/workflow-config.md)
 * [Garden Containers on Docker Hub](./reference/dockerhub-containers.md)
+* [Module Template Configuration](./reference/module-template-config.md)
+* [Module Types](./reference/module-types/README.md)
+  * [`configmap`](./reference/module-types/configmap.md)
+  * [`conftest`](./reference/module-types/conftest.md)
+  * [`container`](./reference/module-types/container.md)
+  * [`exec`](./reference/module-types/exec.md)
+  * [`hadolint`](./reference/module-types/hadolint.md)
+  * [`helm`](./reference/module-types/helm.md)
+  * [`jib-container`](./reference/module-types/jib-container.md)
+  * [`kubernetes`](./reference/module-types/kubernetes.md)
+  * [`persistentvolumeclaim`](./reference/module-types/persistentvolumeclaim.md)
+  * [`pulumi`](./reference/module-types/pulumi.md)
+  * [`templated`](./reference/module-types/templated.md)
+  * [`terraform`](./reference/module-types/terraform.md)
 
 ## undefined Misc
 

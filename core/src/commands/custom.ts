@@ -6,11 +6,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-import Bluebird from "bluebird"
 import chalk from "chalk"
 import execa from "execa"
 import { apply as jsonMerge } from "json-merge-patch"
-import { cloneDeep, keyBy, mapValues, flatten } from "lodash"
+import cloneDeep from "fast-copy"
+import { keyBy, mapValues, flatten } from "lodash"
 import { parseCliArgs, prepareMinimistOpts } from "../cli/helpers"
 import { BooleanParameter, globalOptions, IntegerParameter, Parameter, StringParameter } from "../cli/params"
 import { loadConfigResources } from "../config/base"
@@ -241,7 +241,7 @@ export async function getCustomCommands(log: Log, projectRoot: string) {
   const rootFiles = await listDirectory(projectRoot, { recursive: false })
   const paths = rootFiles.filter(isConfigFilename).map((p) => join(projectRoot, p))
 
-  const resources = flatten(await Bluebird.map(paths, (path) => loadConfigResources(log, projectRoot, path)))
+  const resources = flatten(await Promise.all(paths.map((path) => loadConfigResources(log, projectRoot, path))))
 
   const builtinNames = getBuiltinCommands().flatMap((c) => c.getPaths().map((p) => p.join(" ")))
 

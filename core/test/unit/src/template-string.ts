@@ -15,7 +15,7 @@ import {
   getActionTemplateReferences,
 } from "../../../src/template-string/template-string"
 import { ConfigContext } from "../../../src/config/template-contexts/base"
-import { expectError } from "../../helpers"
+import { expectError, getDataDir, makeTestGarden, TestGarden } from "../../helpers"
 import { dedent } from "../../../src/util/string"
 import stripAnsi from "strip-ansi"
 
@@ -1309,6 +1309,103 @@ describe("resolveTemplateStrings", () => {
     })
   })
 
+  it("should resolve $merge keys if one object is undefined but it can fall back to another object", () => {
+    const obj = {
+      $merge: "${var.doesnotexist || var.obj}",
+      c: "c",
+    }
+    const templateContext = new TestContext({ var: { obj: { a: "a", b: "b" } } })
+
+    const result = resolveTemplateStrings(obj, templateContext)
+
+    expect(result).to.eql({
+      a: "a",
+      b: "b",
+      c: "c",
+    })
+  })
+
+  it("should partially resolve $merge keys if a dependency cannot be resolved yet in partial mode", () => {
+    const obj = {
+      "key-value-array": {
+        $forEach: "${inputs.merged-object || []}",
+        $return: {
+          name: "${item.key}",
+          value: "${item.value}",
+        },
+      },
+    }
+    const templateContext = new TestContext({
+      inputs: {
+        "merged-object": {
+          $merge: "${var.empty || var.input-object}",
+          INTERNAL_VAR_1: "INTERNAL_VAR_1",
+        },
+      },
+      var: {
+        "input-object": {
+          EXTERNAL_VAR_1: "EXTERNAL_VAR_1",
+        },
+      },
+    })
+
+    const result = resolveTemplateStrings(obj, templateContext, { allowPartial: true })
+
+    expect(result).to.eql({
+      "key-value-array": {
+        $forEach: "${inputs.merged-object || []}",
+        $return: {
+          name: "${item.key}",
+          value: "${item.value}",
+        },
+      },
+    })
+  })
+
+  it("should resolve $merge keys if a dependency cannot be resolved but there's a fallback", () => {
+    const obj = {
+      "key-value-array": {
+        $forEach: "${inputs.merged-object || []}",
+        $return: {
+          name: "${item.key}",
+          value: "${item.value}",
+        },
+      },
+    }
+    const templateContext = new TestContext({
+      inputs: {
+        "merged-object": {
+          $merge: "${var.empty || var.input-object}",
+          INTERNAL_VAR_1: "INTERNAL_VAR_1",
+        },
+      },
+      var: {
+        "input-object": {
+          EXTERNAL_VAR_1: "EXTERNAL_VAR_1",
+        },
+      },
+    })
+
+    const result = resolveTemplateStrings(obj, templateContext)
+
+    expect(result).to.eql({
+      "key-value-array": [
+        { name: "EXTERNAL_VAR_1", value: "EXTERNAL_VAR_1" },
+        { name: "INTERNAL_VAR_1", value: "INTERNAL_VAR_1" },
+      ],
+    })
+  })
+
+  it("should ignore $merge keys if the object to be merged is undefined", () => {
+    const obj = {
+      $merge: "${var.doesnotexist}",
+      c: "c",
+    }
+    const templateContext = new TestContext({ var: { obj: { a: "a", b: "b" } } })
+
+    expect(() => resolveTemplateStrings(obj, templateContext)).to.throw("Invalid template string")
+  })
+
   context("$concat", () => {
     it("handles array concatenation", () => {
       const obj = {
@@ -1928,5 +2025,23 @@ describe.skip("throwOnMissingSecretKeys", () => {
         expect(err.message).to.match(/Note: No secrets have been loaded./)
       }
     )
+  })
+})
+
+describe("functional tests", () => {
+  context("cross-context variable references", () => {
+    let dataDir: string
+    let garden: TestGarden
+
+    before(async () => {
+      dataDir = getDataDir("test-projects", "template-strings")
+      garden = await makeTestGarden(dataDir)
+    })
+
+    it("should resolve variables from project-level and environment-level configs", async () => {
+      const graph = await garden.getConfigGraph({ log: garden.log, emit: false })
+      const deployAction = graph.getDeploy("test-deploy")
+      expect(deployAction.getConfig().include).to.eql(["aFileFromEnvConfig", "aFileFromProjectConfig"])
+    })
   })
 })

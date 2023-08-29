@@ -1,4 +1,81 @@
 
+<a name="0.13.12"></a>
+## [0.13.12](https://github.com/garden-io/garden/compare/0.13.11...0.13.12) (2023-08-16)
+
+### Bug Fixes
+
+* detect rosetta emulation during self-update ([#4951](https://github.com/garden-io/garden/issues/4951)) ([56722b2b6](https://github.com/garden-io/garden/commit/56722b2b6))
+* **local-mode:** fix port forward when having many local ssh keys ([3bbc44dd7](https://github.com/garden-io/garden/commit/3bbc44dd7))
+
+### Features
+
+* allow arm installs for self-update to bonsai-edge ([71f6221d5](https://github.com/garden-io/garden/commit/71f6221d5))
+* add ARM64 support ([#4947](https://github.com/garden-io/garden/issues/4947)) ([cb0ef7de4](https://github.com/garden-io/garden/commit/cb0ef7de4))
+
+### Improvements
+
+* **dev:** show spinner when cmd is running ([#4945](https://github.com/garden-io/garden/issues/4945)) ([997c2b313](https://github.com/garden-io/garden/commit/997c2b313))
+
+<a name="0.13.11"></a>
+## [0.13.11](https://github.com/garden-io/garden/compare/0.13.10...0.13.11) (2023-08-14)
+
+### Bug Fixes
+
+* repo scan performance and memory leak ([#4936](https://github.com/garden-io/garden/issues/4936)) ([65d3e7589](https://github.com/garden-io/garden/commit/65d3e7589))
+* templated module templating ([#4932](https://github.com/garden-io/garden/issues/4932)) ([831f61800](https://github.com/garden-io/garden/commit/831f61800))
+* only allow a valid environment to be set as default env ([a2b20e84b](https://github.com/garden-io/garden/commit/a2b20e84b))
+* **k8s:** delete pvc on namespace cleanup ([#4933](https://github.com/garden-io/garden/issues/4933)) ([f866c9537](https://github.com/garden-io/garden/commit/f866c9537))
+
+### Performance Improvements
+
+* improve garden performance ([#4938](https://github.com/garden-io/garden/issues/4938)) ([bf00e650f](https://github.com/garden-io/garden/commit/bf00e650f))
+
+<a name="0.13.10"></a>
+## [0.13.10](https://github.com/garden-io/garden/compare/0.13.9...0.13.10) (2023-08-03)
+
+### Bug Fixes
+
+* mutagen default permissions are too restrictive ([#4824](https://github.com/garden-io/garden/issues/4824)) ([0d6c93d49](https://github.com/garden-io/garden/commit/0d6c93d49))
+* restore azure devops support for dockerhub images ([#4829](https://github.com/garden-io/garden/issues/4829)) ([ef42b168a](https://github.com/garden-io/garden/commit/ef42b168a))
+* **config:** throw error if multiple project configs are found ([86bb66f39](https://github.com/garden-io/garden/commit/86bb66f39))
+* **docs:** update migration guide ([d685ab96f](https://github.com/garden-io/garden/commit/d685ab96f))
+* **k8s:** regression in globs in k8s manifest files ([#4903](https://github.com/garden-io/garden/issues/4903)) ([1b511dc64](https://github.com/garden-io/garden/commit/1b511dc64))
+* **k8s:** allow null in spec.files for deploy config ([#4881](https://github.com/garden-io/garden/issues/4881)) ([4fc3a0997](https://github.com/garden-io/garden/commit/4fc3a0997))
+* **template:** inputs processing in module config resolution ([#4907](https://github.com/garden-io/garden/issues/4907)) ([d4e7dcbb0](https://github.com/garden-io/garden/commit/d4e7dcbb0))
+* **template:** respect project level variables in action config context ([#4883](https://github.com/garden-io/garden/issues/4883)) ([05d0f4455](https://github.com/garden-io/garden/commit/05d0f4455))
+
+### Improvements
+
+* **k8s:** less verbose Run/Test errors ([#4894](https://github.com/garden-io/garden/issues/4894)) ([ea40c016b](https://github.com/garden-io/garden/commit/ea40c016b))
+
+<a name="0.13.9"></a>
+## [0.13.9](https://github.com/garden-io/garden/compare/0.13.8...0.13.9) (2023-07-20)
+
+### Bug Fixes
+
+* properly handle build deps for pulumi and terraform modules ([fbc2320af](https://github.com/garden-io/garden/commit/fbc2320af))
+* enoent when version set to null on tf and pulumi ([8de4c6f12](https://github.com/garden-io/garden/commit/8de4c6f12))
+* allow to use `parent.name` template ([c01f4a052](https://github.com/garden-io/garden/commit/c01f4a052))
+* local-docker build failure when `deploymentRegistry` is enabled ([#4835](https://github.com/garden-io/garden/issues/4835)) ([135ea0413](https://github.com/garden-io/garden/commit/135ea0413))
+* **container:** add default container annotation to generated manifests ([7ca6ca5d1](https://github.com/garden-io/garden/commit/7ca6ca5d1))
+* **docs:** remove unimplemented change from Bonsai migration guide ([b8483e3b1](https://github.com/garden-io/garden/commit/b8483e3b1))
+* **k8s:** enable microk8s addons sequentially ([1a715f949](https://github.com/garden-io/garden/commit/1a715f949))
+* **mutagen:** use shorter directories for mutagen syncs ([#4867](https://github.com/garden-io/garden/issues/4867)) ([2698410c8](https://github.com/garden-io/garden/commit/2698410c8))
+
+### Features
+
+* otel collector integration ([#4769](https://github.com/garden-io/garden/issues/4769)) ([9c4405548](https://github.com/garden-io/garden/commit/9c4405548))
+* **exec:** add --target flag in exec command ([ac7042759](https://github.com/garden-io/garden/commit/ac7042759))
+
+### Improvements
+
+* update docker to v24.0.4 ([eb12ceab0](https://github.com/garden-io/garden/commit/eb12ceab0))
+* verify downloads using sha256 in Dockerfiles ([#4826](https://github.com/garden-io/garden/issues/4826)) ([e976849c7](https://github.com/garden-io/garden/commit/e976849c7))
+
+### Performance Improvements
+
+* **git:** optimize git scan when exclude but no include filter is set ([7361fc90a](https://github.com/garden-io/garden/commit/7361fc90a))
+
 <a name="0.13.8"></a>
 ## [0.13.8](https://github.com/garden-io/garden/compare/0.13.7...0.13.8) (2023-07-13)
 

@@ -9,7 +9,7 @@
 import dotenv = require("dotenv")
 import { sep, resolve, relative, basename, dirname, join } from "path"
 import { load, loadAll } from "js-yaml"
-import yamlLint from "yaml-lint"
+import { lint } from "yaml-lint"
 import { pathExists, readFile } from "fs-extra"
 import { omit, isPlainObject, isArray } from "lodash"
 import { coreModuleSpecSchema, baseModuleSchemaKeys, BuildDependencyConfig, ModuleConfig } from "./module"
@@ -93,7 +93,7 @@ export async function loadAndValidateYaml(content: string, path: string): Promis
   } catch (err) {
     // We try to find the error using a YAML linter
     try {
-      await yamlLint(content)
+      await lint(content)
     } catch (linterErr) {
       throw new ConfigurationError({
         message: `Could not parse ${basename(path)} in directory ${path} as valid YAML: ${err.message}`,
@@ -166,9 +166,6 @@ export async function readConfigFile(configPath: string, projectRoot: string) {
   }
 }
 
-/**
- * Each YAML document in a garden.yml file defines a project, a module or a workflow.
- */
 export function prepareResource({
   log,
   spec,
@@ -457,24 +454,38 @@ export async function findProjectConfig({
 }): Promise<ProjectResource | undefined> {
   let sepCount = path.split(sep).length - 1
 
+  let allProjectSpecs: GardenResource[] = []
+
   for (let i = 0; i < sepCount; i++) {
     const configFiles = (await listDirectory(path, { recursive: false })).filter(isConfigFilename)
 
     for (const configFile of configFiles) {
       const resources = await loadConfigResources(log, path, join(path, configFile), allowInvalid)
 
-      const projectSpecs = resources.filter((s) => s.kind === "Project")
+      let projectSpecs = resources.filter((s) => s.kind === "Project")
 
       if (projectSpecs.length > 1 && !allowInvalid) {
         throw new ConfigurationError({
-          message: `Multiple project declarations found in ${path}`,
+          message: `Multiple project declarations found in ${path}/${configFile}`,
           detail: {
             projectSpecs,
           },
         })
       } else if (projectSpecs.length > 0) {
-        return <ProjectResource>projectSpecs[0]
+        allProjectSpecs = allProjectSpecs.concat(projectSpecs)
       }
+    }
+
+    if (allProjectSpecs.length > 1 && !allowInvalid) {
+      const configPaths = allProjectSpecs.map((i) => `- ${(i as ProjectConfig).configPath}`)
+      throw new ConfigurationError({
+        message: `Multiple project declarations found at paths:\n${configPaths.join("\n")}`,
+        detail: {
+          allProjectSpecs,
+        },
+      })
+    } else if (allProjectSpecs.length === 1) {
+      return <ProjectResource>allProjectSpecs[0]
     }
 
     if (!scan) {

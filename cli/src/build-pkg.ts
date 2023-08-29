@@ -9,7 +9,6 @@
 import chalk from "chalk"
 import { getAbi } from "node-abi"
 import { resolve, relative, join } from "path"
-import Bluebird from "bluebird"
 import { STATIC_DIR, GARDEN_CLI_ROOT, GARDEN_CORE_ROOT } from "@garden-io/core/build/src/constants"
 import { remove, mkdirp, copy, writeFile } from "fs-extra"
 import { exec, getPackageVersion, sleep } from "@garden-io/core/build/src/util/util"
@@ -29,7 +28,7 @@ const pkgPath = resolve(repoRoot, "cli", "node_modules", ".bin", "pkg")
 const distPath = resolve(repoRoot, "dist")
 
 // Allow larger heap size than default
-const nodeOptions = ["max-old-space-size=4096"]
+const nodeOptions = ["max-old-space-size=4096", "max-semi-space-size=64"]
 
 /* eslint-disable no-console */
 
@@ -48,7 +47,9 @@ interface TargetSpec {
 
 const targets: { [name: string]: TargetSpec } = {
   "macos-amd64": { pkgType: "node18-macos-x64", handler: pkgMacos, nodeBinaryPlatform: "darwin" },
+  "macos-arm64": { pkgType: "node18-macos-arm64", handler: pkgMacos, nodeBinaryPlatform: "darwin" },
   "linux-amd64": { pkgType: "node18-linux-x64", handler: pkgLinux, nodeBinaryPlatform: "linux" },
+  "linux-arm64": { pkgType: "node18-linux-arm64", handler: pkgLinux, nodeBinaryPlatform: "linux" },
   "windows-amd64": { pkgType: "node18-win-x64", handler: pkgWindows, nodeBinaryPlatform: "win32" },
   "alpine-amd64": { pkgType: "node18-alpine-x64", handler: pkgAlpine, nodeBinaryPlatform: "linuxmusl" },
 }
@@ -93,48 +94,52 @@ async function buildBinaries(args: string[]) {
   const workspaces = JSON.parse(JSON.parse(res).data)
 
   console.log(chalk.cyan("Copying packages"))
-  await Bluebird.map(Object.entries(workspaces), async ([name, info]: [string, any]) => {
-    const sourcePath = resolve(repoRoot, info.location)
-    const targetPath = resolve(tmpDirPath, info.location)
-    await remove(targetPath)
-    await mkdirp(targetPath)
-    await exec("rsync", [
-      "-r",
-      "-L",
-      "--exclude=node_modules",
-      "--exclude=tmp",
-      "--exclude=test",
-      sourcePath,
-      resolve(targetPath, ".."),
-    ])
+  await Promise.all(
+    Object.entries(workspaces).map(async ([name, info]: [string, any]) => {
+      const sourcePath = resolve(repoRoot, info.location)
+      const targetPath = resolve(tmpDirPath, info.location)
+      await remove(targetPath)
+      await mkdirp(targetPath)
+      await exec("rsync", [
+        "-r",
+        "-L",
+        "--exclude=node_modules",
+        "--exclude=tmp",
+        "--exclude=test",
+        sourcePath,
+        resolve(targetPath, ".."),
+      ])
 
-    console.log(chalk.green(" ✓ " + name))
-  })
+      console.log(chalk.green(" ✓ " + name))
+    })
+  )
 
   // Edit all the packages to have them directly link any internal dependencies
   console.log(chalk.cyan("Modifying package.json files for direct installation"))
-  await Bluebird.map(Object.entries(workspaces), async ([name, info]: [string, any]) => {
-    const packageRoot = resolve(tmpDirPath, info.location)
-    const packageJsonPath = resolve(packageRoot, "package.json")
-    const packageJson = require(packageJsonPath)
+  await Promise.all(
+    Object.entries(workspaces).map(async ([name, info]: [string, any]) => {
+      const packageRoot = resolve(tmpDirPath, info.location)
+      const packageJsonPath = resolve(packageRoot, "package.json")
+      const packageJson = require(packageJsonPath)
 
-    for (const depName of info.workspaceDependencies) {
-      const depInfo = workspaces[depName]
-      const targetRoot = resolve(tmpDirPath, depInfo.location)
-      const relPath = relative(packageRoot, targetRoot)
-      packageJson.dependencies[depName] = "file:" + relPath
-    }
+      for (const depName of info.workspaceDependencies) {
+        const depInfo = workspaces[depName]
+        const targetRoot = resolve(tmpDirPath, depInfo.location)
+        const relPath = relative(packageRoot, targetRoot)
+        packageJson.dependencies[depName] = "file:" + relPath
+      }
 
-    if (version === "edge" || version.startsWith("edge-")) {
-      const gitHash = await exec("git", ["rev-parse", "--short", "HEAD"])
-      packageJson.version = `${packageJson.version}-${version}-${gitHash.stdout}`
-      console.log("Set package version to " + packageJson.version)
-    }
+      if (version === "edge" || version.startsWith("edge-")) {
+        const gitHash = await exec("git", ["rev-parse", "--short", "HEAD"])
+        packageJson.version = `${packageJson.version}-${version}-${gitHash.stdout}`
+        console.log("Set package version to " + packageJson.version)
+      }
 
-    await writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2))
+      await writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2))
 
-    console.log(chalk.green(" ✓ " + name))
-  })
+      console.log(chalk.green(" ✓ " + name))
+    })
+  )
 
   // Run yarn install in the cli package
   console.log(chalk.cyan("Installing packages in @garden-io/cli package"))
@@ -144,19 +149,30 @@ async function buildBinaries(args: string[]) {
   // Run pkg and pack up each platform binary
   console.log(chalk.cyan("Packaging garden binaries"))
 
-  await Bluebird.map(Object.entries(selected), async ([targetName, spec]) => {
-    await spec.handler({ targetName, sourcePath: cliPath, pkgType: spec.pkgType, version })
-    await sleep(5000) // Work around concurrency bug in pkg...
-    console.log(chalk.green(" ✓ " + targetName))
-  })
+  await Promise.all(
+    Object.entries(selected).map(async ([targetName, spec]) => {
+      await spec.handler({ targetName, sourcePath: cliPath, pkgType: spec.pkgType, version })
+      await sleep(5000) // Work around concurrency bug in pkg...
+      console.log(chalk.green(" ✓ " + targetName))
+    })
+  )
 
   console.log(chalk.green.bold("Done!"))
 }
 
+let fsEventsCopied: Promise<void> | undefined = undefined
 async function pkgMacos({ targetName, sourcePath, pkgType, version }: TargetHandlerParams) {
   console.log(` - ${targetName} -> fsevents`)
   // Copy fsevents from lib to node_modules
-  await copy(resolve(GARDEN_CORE_ROOT, "lib", "fsevents"), resolve(tmpDirPath, "cli", "node_modules", "fsevents"))
+  // This might happen concurrently for multiple targets
+  // so we only do it once and then wait for that process to complete
+  if (!fsEventsCopied) {
+    fsEventsCopied = copy(
+      resolve(GARDEN_CORE_ROOT, "lib", "fsevents"),
+      resolve(tmpDirPath, "cli", "node_modules", "fsevents")
+    )
+  }
+  await fsEventsCopied
 
   await pkgCommon({
     sourcePath,
@@ -295,7 +311,12 @@ async function pkgCommon({
       sourcePath,
       "--compress",
       "Brotli",
+      // We do not need to compile to bytecode and obfuscate the source
       "--public",
+      "--public-packages",
+      "*",
+      // We include all native binaries required manually
+      "--no-native-build",
       "--options",
       nodeOptions.join(","),
       "--output",

@@ -8,7 +8,8 @@
 
 import { resolve } from "path"
 import { expect } from "chai"
-import { cloneDeep, omit } from "lodash"
+import cloneDeep from "fast-copy"
+import { omit } from "lodash"
 
 import { expectError, getDataDir, makeTestGarden, TestGarden, withDefaultGlobalOpts } from "../../../../../helpers"
 import { PluginContext } from "../../../../../../src/plugin-context"
@@ -64,6 +65,8 @@ describe("configureHelmModule", () => {
         paths: [
           {
             mode: "two-way",
+            defaultDirectoryMode: 0o755,
+            defaultFileMode: 0o644,
             source: ".",
             target: "/app",
           },

@@ -6,8 +6,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-import Bluebird from "bluebird"
-import { cloneDeep, isEqual, mapValues, memoize, omit, pick, uniq } from "lodash"
+import cloneDeep from "fast-copy"
+import { isEqual, mapValues, memoize, omit, pick, uniq } from "lodash"
 import {
   Action,
   ActionConfig,
@@ -42,7 +42,7 @@ import { ConfigurationError, InternalError, PluginError, ValidationError } from 
 import { overrideVariables, type Garden } from "../garden"
 import type { Log } from "../logger/log-entry"
 import type { ActionTypeDefinition } from "../plugin/action-types"
-import { getActionTypeBases } from "../plugins"
+import { ActionDefinitionMap, getActionTypeBases } from "../plugins"
 import type { ActionRouter } from "../router/router"
 import { getExecuteTaskForAction } from "../tasks/helpers"
 import { ResolveActionTask } from "../tasks/resolve-action"
@@ -134,70 +134,74 @@ export const actionConfigsToGraph = profileAsync(async function actionConfigsToG
   // TODO: Maybe we could optimize resolving tree versions, avoid parallel scanning of the same directory etc.
   const graph = new MutableConfigGraph({ actions: [], moduleGraph, groups: groupConfigs })
 
-  await Bluebird.map(Object.entries(configsByKey), async ([key, config]) => {
-    // Apply action modes
-    let mode: ActionMode = "default"
-    let explicitMode = false // set if a key is explicitly set (as opposed to a wildcard match)
+  await Promise.all(
+    Object.entries(configsByKey).map(async ([key, config]) => {
+      // Apply action modes
+      let mode: ActionMode = "default"
+      let explicitMode = false // set if a key is explicitly set (as opposed to a wildcard match)
 
-    for (const pattern of actionModes.sync || []) {
-      if (key === pattern) {
-        explicitMode = true
-        mode = "sync"
-        log.silly(`Action ${key} set to ${mode} mode, matched on exact key`)
-        break
-      } else if (minimatch(key, pattern)) {
-        mode = "sync"
-        log.silly(`Action ${key} set to ${mode} mode, matched with pattern '${pattern}'`)
-        break
-      }
-    }
-
-    // Local mode takes precedence over sync
-    // TODO: deduplicate
-    for (const pattern of actionModes.local || []) {
-      if (key === pattern) {
-        explicitMode = true
-        mode = "local"
-        log.silly(`Action ${key} set to ${mode} mode, matched on exact key`)
-        break
-      } else if (minimatch(key, pattern)) {
-        mode = "local"
-        log.silly(`Action ${key} set to ${mode} mode, matched with pattern '${pattern}'`)
-        break
-      }
-    }
-
-    try {
-      const action = await actionFromConfig({
-        garden,
-        graph,
-        config,
-        router,
-        log,
-        configsByKey,
-        mode,
-        linkedSources,
-        scanRoot: minimalRoots[getConfigBasePath(config)],
-      })
-
-      if (!action.supportsMode(mode)) {
-        if (explicitMode) {
-          log.warn(chalk.yellow(`${action.longDescription()} is not configured for or does not support ${mode} mode`))
+      for (const pattern of actionModes.sync || []) {
+        if (key === pattern) {
+          explicitMode = true
+          mode = "sync"
+          log.silly(`Action ${key} set to ${mode} mode, matched on exact key`)
+          break
+        } else if (minimatch(key, pattern)) {
+          mode = "sync"
+          log.silly(`Action ${key} set to ${mode} mode, matched with pattern '${pattern}'`)
+          break
         }
       }
 
-      graph.addAction(action)
-    } catch (error) {
-      throw new ConfigurationError({
-        message:
-          chalk.redBright(
-            `\nError processing config for ${chalk.white.bold(config.kind)} action ${chalk.white.bold(config.name)}:\n`
-          ) + chalk.red(error.message),
-        detail: { config },
-        wrappedErrors: [error],
-      })
-    }
-  })
+      // Local mode takes precedence over sync
+      // TODO: deduplicate
+      for (const pattern of actionModes.local || []) {
+        if (key === pattern) {
+          explicitMode = true
+          mode = "local"
+          log.silly(`Action ${key} set to ${mode} mode, matched on exact key`)
+          break
+        } else if (minimatch(key, pattern)) {
+          mode = "local"
+          log.silly(`Action ${key} set to ${mode} mode, matched with pattern '${pattern}'`)
+          break
+        }
+      }
+
+      try {
+        const action = await actionFromConfig({
+          garden,
+          graph,
+          config,
+          router,
+          log,
+          configsByKey,
+          mode,
+          linkedSources,
+          scanRoot: minimalRoots[getConfigBasePath(config)],
+        })
+
+        if (!action.supportsMode(mode)) {
+          if (explicitMode) {
+            log.warn(chalk.yellow(`${action.longDescription()} is not configured for or does not support ${mode} mode`))
+          }
+        }
+
+        graph.addAction(action)
+      } catch (error) {
+        throw new ConfigurationError({
+          message:
+            chalk.redBright(
+              `\nError processing config for ${chalk.white.bold(config.kind)} action ${chalk.white.bold(
+                config.name
+              )}:\n`
+            ) + chalk.red(error.message),
+          detail: { config },
+          wrappedErrors: [error],
+        })
+      }
+    })
+  )
 
   graph.validate()
 
@@ -293,7 +297,7 @@ export const actionFromConfig = profileAsync(async function actionFromConfig({
     })
   }
 
-  const dependencies = dependenciesFromActionConfig(log, config, configsByKey, definition, templateContext)
+  const dependencies = dependenciesFromActionConfig(log, config, configsByKey, definition, templateContext, actionTypes)
 
   if (config.exclude?.includes("**/*")) {
     if (config.include && config.include.length !== 0) {
@@ -582,7 +586,7 @@ export const preprocessActionConfig = profileAsync(async function preprocessActi
   })
 
   function resolveTemplates() {
-    // Fully resolve built-in fields that only support ProjectConfigContext
+    // Fully resolve built-in fields that only support `ActionConfigContext`.
     // TODO-0.13.1: better error messages when something goes wrong here (missing inputs for example)
     const resolvedBuiltin = resolveTemplateStrings(pick(config, builtinConfigKeys), builtinFieldContext, {
       allowPartial: false,
@@ -609,6 +613,7 @@ export const preprocessActionConfig = profileAsync(async function preprocessActi
 
     // Partially resolve other fields
     // TODO-0.13.1: better error messages when something goes wrong here (missing inputs for example)
+
     const resolvedOther = resolveTemplateStrings(omit(config, builtinConfigKeys), builtinFieldContext, {
       allowPartial: true,
     })
@@ -659,7 +664,8 @@ function dependenciesFromActionConfig(
   config: ActionConfig,
   configsByKey: ActionConfigsByKey,
   definition: MaybeUndefined<ActionTypeDefinition<any>>,
-  templateContext: ConfigContext
+  templateContext: ConfigContext,
+  actionTypes: ActionDefinitionMap
 ) {
   const description = describeActionConfig(config)
 
@@ -716,12 +722,12 @@ function dependenciesFromActionConfig(
 
   // Action template references in spec/variables
   // -> We avoid depending on action execution when referencing static output keys
-  const staticKeys = definition?.staticOutputsSchema ? describeSchema(definition.staticOutputsSchema).keys : []
+  const staticOutputKeys = definition?.staticOutputsSchema ? describeSchema(definition.staticOutputsSchema).keys : []
 
   for (const ref of getActionTemplateReferences(config)) {
     let needsExecuted = false
 
-    const outputKey = ref.fullRef[4]
+    const outputKey = ref.fullRef[4] as string
 
     if (maybeTemplateString(ref.name)) {
       try {
@@ -733,8 +739,25 @@ function dependenciesFromActionConfig(
         continue
       }
     }
+    // also avoid execution when referencing the static output keys of the ref action type.
+    // e.g. a helm deploy referencing container build static output deploymentImageName
+    // ${actions.build.my-container.outputs.deploymentImageName}
+    const refActionKey = actionReferenceToString(ref)
+    const refActionType = configsByKey[refActionKey]?.type
+    let refStaticOutputKeys: string[] = []
+    if (refActionType) {
+      const refActionSpec = actionTypes[ref.kind][refActionType]?.spec
+      refStaticOutputKeys = refActionSpec?.staticOutputsSchema
+        ? describeSchema(refActionSpec.staticOutputsSchema).keys
+        : []
+    }
 
-    if (ref.fullRef[3] === "outputs" && outputKey && !staticKeys?.includes(<string>outputKey)) {
+    if (
+      ref.fullRef[3] === "outputs" &&
+      outputKey &&
+      !staticOutputKeys.includes(outputKey) &&
+      !refStaticOutputKeys.includes(outputKey)
+    ) {
       needsExecuted = true
     }
 

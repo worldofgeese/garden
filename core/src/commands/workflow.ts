@@ -7,7 +7,8 @@
  */
 
 import chalk from "chalk"
-import { cloneDeep, flatten, last, repeat, size } from "lodash"
+import cloneDeep from "fast-copy"
+import { flatten, last, repeat, size } from "lodash"
 import { printHeader, getTerminalWidth, renderMessageWithDivider, renderDuration } from "../logger/util"
 import { Command, CommandParams, CommandResult } from "./base"
 import { dedent, wordWrap, deline } from "../util/string"
@@ -24,7 +25,6 @@ import { resolveTemplateStrings, resolveTemplateString } from "../template-strin
 import { ConfigurationError, FilesystemError } from "../exceptions"
 import { posix, join } from "path"
 import { ensureDir, writeFile } from "fs-extra"
-import Bluebird from "bluebird"
 import { getDurationMsec, toEnvVars } from "../util/util"
 import { runScript } from "../util/util"
 import { ExecaError } from "execa"
@@ -89,7 +89,7 @@ export class WorkflowCommand extends Command<Args, {}> {
     const files = resolveTemplateStrings(workflow.files || [], templateContext)
 
     // Write all the configured files for the workflow
-    await Bluebird.map(files, (file) => writeWorkflowFile(garden, file))
+    await Promise.all(files.map((file) => writeWorkflowFile(garden, file)))
 
     const steps = workflow.steps
     const allStepNames = steps.map((s, i) => getStepName(i, s.name))

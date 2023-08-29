@@ -5,7 +5,7 @@ ARG VARIANT=root
 #
 # garden-base
 #
-FROM node:18.15.0-alpine@sha256:a3f2350bd3eb48525f801b57934300c11aa3610086b708854ab1c1045c018519 as garden-alpine-base-root
+FROM node:18.15.0-alpine@sha256:47d97b93629d9461d64197773966cc49081cf4463b1b07de5a38b6bd5acfbe9d as garden-alpine-base-root
 
 RUN apk add --no-cache \
   bash \
@@ -28,10 +28,20 @@ RUN apk add --no-cache \
   groff \
   py3-crcmod
 
+# Add tools required for Azure DevOps. See also https://github.com/microsoft/azure-pipelines-agent/blob/master/docs/design/non-glibc-containers.md
+RUN apk add --no-cache --virtual .pipeline-deps readline linux-pam  \
+  && apk add bash sudo shadow \
+  && apk del .pipeline-deps
+
 ENV USER=root
 ENV HOME=/root
 
-ENTRYPOINT ["/garden/garden"]
+# We do not set an entrypoint here for compatibility with Azure DevOps pipelines.
+# See also https://learn.microsoft.com/en-us/azure/devops/pipelines/process/container-phases?view=azure-devops#linux-based-containers
+ENTRYPOINT []
+
+# Required by Azure DevOps to tell the system where node is installed
+LABEL "com.azure.dev.pipelines.agent.handler.node.path"="/usr/local/bin/node"
 
 FROM garden-alpine-base-root as garden-alpine-base-rootless
 
@@ -89,7 +99,7 @@ COPY --chown=$USER:root --from=aws-builder /usr/bin/aws-iam-authenticator /usr/b
 #
 # gcloud base
 #
-FROM google/cloud-sdk:438.0.0-alpine@sha256:429745a61f5928d0149a1dffa50731104798116ac3db3bc7a88d59a78d0e4509 as gcloud-base
+FROM google/cloud-sdk:444.0.0-alpine@sha256:183f1891ac3141a9b07ca15ac97cffb9288825ffa8033ef561c64c18d4170a16 as gcloud-base
 
 RUN gcloud components install kubectl gke-gcloud-auth-plugin --quiet
 
@@ -127,9 +137,6 @@ COPY --chown=$USER:root --from=garden-azure-base /azure-cli /azure-cli
 COPY --chown=$USER:root --from=garden-azure-base /usr/local/bin/az /usr/local/bin/az
 COPY --chown=$USER:root --from=garden-azure-base /usr/local/bin/kubectl /usr/local/bin/kubectl
 COPY --chown=$USER:root --from=garden-azure-base /usr/local/bin/kubelogin /usr/local/bin/kubelogin
-
-# Required by Azure DevOps to tell the system where node is installed
-LABEL "com.azure.dev.pipelines.agent.handler.node.path"="/usr/local/bin/node"
 
 #
 # garden-aws
@@ -187,6 +194,3 @@ COPY --chown=$USER:root --from=garden-azure-base /azure-cli /azure-cli
 COPY --chown=$USER:root --from=garden-azure-base /usr/local/bin/az /usr/local/bin/az
 COPY --chown=$USER:root --from=garden-azure-base /usr/local/bin/kubectl /usr/local/bin/kubectl
 COPY --chown=$USER:root --from=garden-azure-base /usr/local/bin/kubelogin /usr/local/bin/kubelogin
-
-# Required by Azure DevOps to tell the system where node is installed
-LABEL "com.azure.dev.pipelines.agent.handler.node.path"="/usr/local/bin/node"

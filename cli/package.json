@@ -1,6 +1,6 @@
 {
   "name": "@garden-io/cli",
-  "version": "0.13.8",
+  "version": "0.13.12",
   "description": "Cloud native testing platform for testing and developing container applications on Kubernetes",
   "repository": {
     "type": "git",
@@ -31,7 +31,7 @@
     "@garden-io/garden-terraform": "*",
     "chalk": "^4.1.2",
     "patch-package": "^6.5.1",
-    "pkg": "5.7.0"
+    "pkg": "5.8.1"
   },
   "devDependencies": {
     "@types/chai": "^4.3.4",

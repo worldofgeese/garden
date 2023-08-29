@@ -6,7 +6,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-import { cloneDeep, get, isString, merge } from "lodash"
+import cloneDeep from "fast-copy"
+import { get, isString, merge } from "lodash"
 
 import { convertExecModule } from "../../src/plugins/exec/convert"
 import { createSchema, joi, joiArray } from "../../src/config/common"
@@ -185,7 +186,9 @@ const testPluginBuild = testPluginProvider.createActionType({
   runtimeOutputsSchema: execRuntimeOutputsSchema,
 })
 
-testPluginBuild.addHandler("build", execBuildHandler)
+// TODO: remove typecast. Required due to `testBuildStaticOutputsSchema` being defined and `execBuildHandler` not having the outputs.
+// Property 'foo' is missing in type '{}' but required in type '{ foo: string; }
+testPluginBuild.addHandler("build", execBuildHandler as any)
 testPluginBuild.addHandler("getStatus", async ({ ctx, action }) => {
   const result = get(ctx.provider, ["_actionStatuses", action.kind, action.name])
   return result || { state: "not-ready", detail: null, outputs: {} }

@@ -694,35 +694,6 @@ Examples:
   | `--name` |  | string | Name of the project (defaults to current directory name).
 
 
-### garden create module
-
-**Create a new Garden module.**
-
-Creates a new Garden module configuration. The generated config includes some default values, as well as the
-schema of the config in the form of commentented-out fields.
-
-Examples:
-
-    garden create module                      # create a Garden module config in the current directory
-    garden create module --dir some-dir       # create a Garden module config in the ./some-dir directory
-    garden create module --name my-module     # set the module name to my-module
-    garden create module --interactive=false  # don't prompt for user inputs when creating the module
-
-#### Usage
-
-    garden create module [options]
-
-#### Options
-
-| Argument | Alias | Type | Description |
-| -------- | ----- | ---- | ----------- |
-  | `--dir` |  | path | Directory to place the module in (defaults to current directory).
-  | `--filename` |  | string | Filename to place the module config in (defaults to garden.yml).
-  | `--interactive` |  | boolean | Set to false to disable interactive prompts.
-  | `--name` |  | string | Name of the module (defaults to current directory name).
-  | `--type` |  | string | The module type to create. Required if --interactive&#x3D;false.
-
-
 ### garden cleanup namespace
 
 **Deletes a running namespace.**
@@ -1398,6 +1369,7 @@ Examples:
 | Argument | Alias | Type | Description |
 | -------- | ----- | ---- | ----------- |
   | `--interactive` |  | boolean | Set to false to skip interactive mode and just output the command result
+  | `--target` |  | string | Specify name of the target if a Deploy action consists of multiple components. _NOTE: This option is only relevant in certain scenarios and will be ignored otherwise._ For Kubernetes deploy actions, this is useful if a Deployment includes multiple containers, such as sidecar containers. By default, the container with &#x60;kubectl.kubernetes.io/default-container&#x60; annotation or the first container is picked.
 
 #### Outputs
 
@@ -3376,6 +3348,9 @@ actions:
         # The output log from the run.
         log:
 
+        # An optional, more detailed diagnostic error message from the plugin.
+        diagnosticErrorMsg:
+
   # A map of statuses for each configured Test.
   Test:
     <name>:
@@ -3406,6 +3381,9 @@ actions:
 
         # The output log from the run.
         log:
+
+        # An optional, more detailed diagnostic error message from the plugin.
+        diagnosticErrorMsg:
 ```
 
 ### garden get actions
@@ -3773,6 +3751,9 @@ detail:
   # The output log from the run.
   log:
 
+  # An optional, more detailed diagnostic error message from the plugin.
+  diagnosticErrorMsg:
+
 # Local file paths to any exported artifacts from the Run's execution.
 artifacts:
 ```
@@ -3824,6 +3805,9 @@ detail:
 
   # The output log from the run.
   log:
+
+  # An optional, more detailed diagnostic error message from the plugin.
+  diagnosticErrorMsg:
 
 # Local file paths to any exported artifacts from the test run.
 artifacts:

@@ -166,6 +166,34 @@ interface KubernetesStatusDetail {
 
 export type KubernetesServiceStatus = ServiceStatus<KubernetesStatusDetail>
 
+function composeKubernetesDeployStatus({
+  action,
+  deployedMode,
+  state,
+  remoteResources,
+  forwardablePorts,
+}: {
+  action: KubernetesDeployAction
+  deployedMode: ActionMode
+  state: DeployState
+  remoteResources: KubernetesResource[]
+  forwardablePorts: ForwardablePort[]
+}) {
+  return {
+    state: deployStateToActionState(state),
+    detail: {
+      forwardablePorts,
+      state,
+      version: state === "ready" ? action.versionString() : undefined,
+      detail: { remoteResources },
+      mode: deployedMode,
+      ingresses: getK8sIngresses(remoteResources),
+    },
+    // TODO-0.13.1
+    outputs: {},
+  }
+}
+
 export const getKubernetesDeployStatus: DeployActionHandler<"getStatus", KubernetesDeployAction> = async (params) => {
   const { ctx, action, log } = params
   const spec = action.getSpec()
@@ -190,7 +218,7 @@ export const getKubernetesDeployStatus: DeployActionHandler<"getStatus", Kuberne
   let deployedMode: ActionMode = "default"
   let state: DeployState = "ready"
   let remoteResources: KubernetesResource[] = []
-  let forwardablePorts: ForwardablePort[] | undefined
+  let forwardablePorts: ForwardablePort[] = []
 
   const remoteMetadataResource = await getDeployedResource(ctx, provider, metadataManifest, log)
 
@@ -256,19 +284,13 @@ export const getKubernetesDeployStatus: DeployActionHandler<"getStatus", Kuberne
     }
   }
 
-  return {
-    state: deployStateToActionState(state),
-    detail: {
-      forwardablePorts,
-      state,
-      version: state === "ready" ? action.versionString() : undefined,
-      detail: { remoteResources },
-      mode: deployedMode,
-      ingresses: getK8sIngresses(remoteResources || []),
-    },
-    // TODO-0.13.1
-    outputs: {},
-  }
+  return composeKubernetesDeployStatus({
+    action,
+    deployedMode,
+    state,
+    remoteResources,
+    forwardablePorts,
+  })
 }
 
 export const kubernetesDeploy: DeployActionHandler<"deploy", KubernetesDeployAction> = async (params) => {

@@ -289,12 +289,6 @@ export const getKubernetesDeployStatus: DeployActionHandler<"getStatus", Kuberne
 
   const deployedMetadata = parseMetadataResource(log, remoteMetadataResource)
   const deployedMode = deployedMetadata.mode
-  const remoteResources: KubernetesResource[] = []
-  let state: DeployState = "ready"
-
-  if (isOutdated({ action, deployedMetadata })) {
-    state = "outdated"
-  }
 
   try {
     const resourceStatuses = await getResourceStatuses({
@@ -304,29 +298,40 @@ export const getKubernetesDeployStatus: DeployActionHandler<"getStatus", Kuberne
       log,
     })
 
-    resourceStatuses.forEach((rs) => {
-      if (rs.state !== "missing") {
-        remoteResources.push(rs.resource)
-      }
+    const remoteResources: KubernetesResource[] = resourceStatuses
+      .filter((rs) => rs.state !== "missing")
+      .map((rs) => rs.resource)
+
+    const forwardablePorts = getForwardablePorts({
+      resources: remoteResources,
+      parentAction: action,
+      mode: deployedMode,
     })
 
-    if (state !== "outdated") {
-      state = resolveResourceStatuses(log, resourceStatuses)
-    }
+    const state: DeployState = isOutdated({
+      action,
+      deployedMetadata,
+    })
+      ? "outdated"
+      : resolveResourceStatuses(log, resourceStatuses)
+
+    return composeKubernetesDeployStatus({
+      action,
+      deployedMode,
+      state,
+      remoteResources,
+      forwardablePorts,
+    })
   } catch (error) {
     log.debug({ msg: `Failed querying for remote resources: ${error.message}`, error })
-    state = "unknown"
+    return composeKubernetesDeployStatus({
+      action,
+      deployedMode,
+      state: "unknown",
+      remoteResources: [],
+      forwardablePorts: [],
+    })
   }
-
-  const forwardablePorts = getForwardablePorts({ resources: remoteResources, parentAction: action, mode: deployedMode })
-
-  return composeKubernetesDeployStatus({
-    action,
-    deployedMode,
-    state,
-    remoteResources,
-    forwardablePorts,
-  })
 }
 
 export const kubernetesDeploy: DeployActionHandler<"deploy", KubernetesDeployAction> = async (params) => {

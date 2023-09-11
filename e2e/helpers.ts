@@ -12,9 +12,9 @@ import { remove } from "fs-extra"
 import { get, intersection, padEnd } from "lodash"
 import parseArgs from "minimist"
 import { resolve } from "path"
-import { DEFAULT_GARDEN_DIR_NAME, GARDEN_CORE_ROOT } from "@garden-io/core/build/src/constants"
-import { TaskLogStatus } from "@garden-io/core/build/src/logger/log-entry"
-import { JsonLogEntry } from "@garden-io/core/build/src/logger/writers/json-terminal-writer"
+import { DEFAULT_GARDEN_DIR_NAME, GARDEN_CORE_ROOT } from "@worldofgeese/core/build/src/constants"
+import { TaskLogStatus } from "@worldofgeese/core/build/src/logger/log-entry"
+import { JsonLogEntry } from "@worldofgeese/core/build/src/logger/writers/json-terminal-writer"
 import { WatchTestConditionState } from "./run-garden"
 
 export const parsedArgs = parseArgs(process.argv.slice(2))

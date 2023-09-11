@@ -1,12 +1,12 @@
 {
-  "name": "@garden-io/garden-pulumi",
+  "name": "@worldofgeese/garden-pulumi",
   "version": "0.13.13",
   "description": "Pulumi plugin for Garden",
   "main": "index.js",
   "private": "false",
   "dependencies": {
-    "@garden-io/core": "*",
-    "@garden-io/sdk": "*",
+    "@worldofgeese/core": "*",
+    "@worldofgeese/sdk": "^0.13.13-preview.5",
     "chalk": "^4.1.0",
     "execa": "^4.0.3",
     "fs-extra": "^11.1.0",

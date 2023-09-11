@@ -9,12 +9,12 @@
 import { ChildProcess, spawn } from "child_process"
 import execa from "execa"
 import { resolve } from "path"
-import { sleep } from "@garden-io/core/build/src/util/util"
+import { sleep } from "@worldofgeese/core/build/src/util/util"
 import { searchLog, findTasks, touchFile, parsedArgs, parseLogEntry, stringifyJsonLog } from "./helpers"
-import { JsonLogEntry } from "@garden-io/core/build/src/logger/writers/json-terminal-writer"
-import { ParameterError, TimeoutError } from "@garden-io/core/build/src/exceptions"
-import { dedent, deline } from "@garden-io/core/build/src/util/string"
-import { GARDEN_CLI_ROOT } from "@garden-io/core/build/src/constants"
+import { JsonLogEntry } from "@worldofgeese/core/build/src/logger/writers/json-terminal-writer"
+import { ParameterError, TimeoutError } from "@worldofgeese/core/build/src/exceptions"
+import { dedent, deline } from "@worldofgeese/core/build/src/util/string"
+import { GARDEN_CLI_ROOT } from "@worldofgeese/core/build/src/constants"
 import chalk from "chalk"
 import split2 = require("split2")
 

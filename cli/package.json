@@ -1,5 +1,5 @@
 {
-  "name": "@garden-io/cli",
+  "name": "@worldofgeese/cli",
   "version": "0.13.13",
   "description": "Cloud native testing platform for testing and developing container applications on Kubernetes",
   "repository": {
@@ -22,13 +22,13 @@
     "garden": "bin/garden"
   },
   "dependencies": {
-    "@worldofgeese/core": "*",
-    "@worldofgeese/garden-conftest": "*",
-    "@worldofgeese/garden-conftest-container": "*",
-    "@worldofgeese/garden-conftest-kubernetes": "*",
-    "@worldofgeese/garden-jib": "*",
-    "@worldofgeese/garden-pulumi": "*",
-    "@worldofgeese/garden-terraform": "*",
+    "@worldofgeese/core": "0.13.13-alpha.1",
+    "@worldofgeese/garden-conftest": "^0.13.13-preview.3",
+    "@worldofgeese/garden-conftest-container": "^0.13.13-preview.2",
+    "@worldofgeese/garden-conftest-kubernetes": "0.13.13-preview.2",
+    "@worldofgeese/garden-jib": "^0.13.13-preview.3",
+    "@worldofgeese/garden-pulumi": "^0.13.13-preview.3",
+    "@worldofgeese/garden-terraform": "^0.13.13-preview.3",
     "chalk": "^4.1.2",
     "patch-package": "^6.5.1",
     "pkg": "5.8.1"

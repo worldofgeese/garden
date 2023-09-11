@@ -1,13 +1,13 @@
 {
-  "name": "@garden-io/garden-conftest-container",
+  "name": "@worldofgeese/garden-conftest-container",
   "version": "0.13.13",
   "description": "Auto-generator for the conftest plugin and Garden container modules",
   "main": "index.js",
   "private": "false",
   "dependencies": {
-    "@garden-io/core": "*",
-    "@garden-io/garden-conftest": "*",
-    "@garden-io/sdk": "*",
+    "@worldofgeese/core": "*",
+    "@worldofgeese/garden-conftest": "*",
+    "@worldofgeese/sdk": "^0.13.13-preview.5",
     "chalk": "^4.1.0",
     "execa": "^4.0.3",
     "slash": "^3.0.0"

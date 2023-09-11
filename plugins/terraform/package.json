@@ -1,12 +1,12 @@
 {
-  "name": "@garden-io/garden-terraform",
+  "name": "@worldofgeese/garden-terraform",
   "version": "0.13.13",
   "description": "Terraform plugin for Garden",
   "main": "index.js",
   "private": "false",
   "dependencies": {
-    "@garden-io/core": "*",
-    "@garden-io/sdk": "*",
+    "@worldofgeese/core": "*",
+    "@worldofgeese/sdk": "^0.13.13-preview.5",
     "chalk": "^4.1.0",
     "execa": "^4.0.3",
     "fs-extra": "^11.1.0",

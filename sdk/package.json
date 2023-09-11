@@ -17,7 +17,7 @@
   "private": false,
   "main": "index.js",
   "dependencies": {
-    "@garden-io/core": "*",
+    "@worldofgeese/core": "*",
     "minimist": "^1.2.8"
   },
   "devDependencies": {

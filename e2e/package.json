@@ -1,5 +1,5 @@
 {
-  "name": "@garden-io/e2e",
+  "name": "@worldofgeese/e2e",
   "version": "0.13.13",
   "description": "End-to-end tests for the Garden CLI",
   "repository": {
@@ -20,8 +20,8 @@
   ],
   "main": "e2e-project.js",
   "dependencies": {
-    "@garden-io/cli": "*",
-    "@garden-io/core": "*"
+    "@worldofgeese/cli": "*",
+    "@worldofgeese/core": "*"
   },
   "devDependencies": {
     "@types/lodash": "^4.14.191",
